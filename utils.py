@@ -39,7 +39,7 @@ from struct import pack, unpack
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                    Options                    |    Padding    |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                             data                              |
+|                      Network Layer data                       |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 """
 
@@ -49,7 +49,10 @@ def get_localhost():
     host_socket.connect(('8.8.8.8', 80))
     
     # Returns the localhost name: (IP Address, Port No.)
-    return host_socket.getsockname()
+    localhost = host_socket.getsockname()
+    host_socket.close()
+
+    return localhost[0], localhost[1]
 
 """ Set of constant fields """
 HTTP_STATUS_CODE = 200
@@ -94,7 +97,8 @@ PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
 
 # TODO: Start with IP Header information (Fields + Flags + IP Data packing)
 
-
+""" IP and TCP header field keys """
+KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
 
 """ Helper method to calculate checksum """
 ''' Refereced from Suraj Singh, Bitforestinfo '''
@@ -120,15 +124,16 @@ Helper method to instantiate TCP fields: Takes in TCP fields as params that do n
     3. param: flags - flags that will be changed (SYN, ACK, FIN)
     4. param: adv_window - current advertised window of the receiver # ? Re-evaluate whether we need it
     5. param: data - payload to be send over the raw socket connection
+    6. return: Data packet with the TCP header added on top of the IP header and the payload (data)
 """
 # ? Check if we can split pack and re-pack functions for TCP fields
-def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, data: str):
+def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, net_layer_data: str):
     tcp_header = pack(
         TCP_HEADER_FORMAT, 
-        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window, TCP_CHECKSUM, TCP_URGENT_PTR
+        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, flags, adv_window, TCP_CHECKSUM, TCP_URGENT_PTR
     )
 
-    tcp_segment_length = len(tcp_header) + len(data)
+    tcp_segment_length = len(tcp_header) + len(net_layer_data)
 
     ''' CheckSum of the TCP is calculated by taking into account TCP header, TCP body and Pseudo IP header
         * Cannot correctly guess the IP header size from Transport layer
@@ -146,13 +151,42 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, dat
     )
 
     # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
-    checksum = calc_header_checksum(tcp_header + data.encode() + pseudo_ip_header)
+    checksum = calc_header_checksum(tcp_header + net_layer_data.encode(FORMAT) + pseudo_ip_header)
 
     # Repack TCP header
     tcp_header = pack(
         TCP_HEADER_SEGMENT_FORMAT, 
         TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window
-    ) + pack('H', checksum) + pack('H', TCP_URGENT_PTR)
+    ) + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
 
-    tcp_packet = tcp_header + data.encode(FORMAT)
+    tcp_packet = tcp_header + net_layer_data.encode(FORMAT)
     return tcp_packet
+
+""" 
+Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
+    1. param: tport_layer_packet - Data from the Transport layer (TCP header + IP header + payload)
+    2. return: a key-value table of the fields of the TCP header
+"""
+def unpack_tcp_fields(tport_layer_packet):
+    # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
+    tcp_header_fields = unpack(TCP_HEADER_FORMAT, tport_layer_packet[: 20])
+    tcp_header = dict(zip(KEYS_TCP_FIELDS, tcp_header_fields))
+
+    # Validate presence of any TCP options
+    # 1. Shift offset 4 bits from data offset field and get no. of words value
+    options_offset = tcp_header['data_offset'] >> 4
+    tcp_options = None
+
+    # If this offset is = 5 words means that Options and Padding fields are empty, so..
+    if (options_offset > 5):    # There are options [0...40B max]
+        # ? Extract MSS - WTF should I do with it?
+        tcp_options = tport_layer_packet[20 : 4 * options_offset]
+
+    net_layer_packet = tport_layer_packet[4 * options_offset :]
+
+    # Validate: if packet is headed towards the correct destination port
+    if (tcp_header['dest_port'] != TCP_SOURCE_PORT):
+        # TODO: Exit gracefully
+        pass
+
+    

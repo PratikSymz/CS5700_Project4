@@ -5,7 +5,6 @@ class RawSocket:
     sender_socket, receiver_socket = None, None
 
     def __init__(self):
-
         try:
             # Raw socket setup
             # ? Check for IPv6 later. For that we need socket.AF_INET6. Starting with IPv4 now
