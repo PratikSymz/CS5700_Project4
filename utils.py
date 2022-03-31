@@ -1,3 +1,4 @@
+from ast import arg
 import random, socket
 from struct import pack, unpack
 
@@ -43,16 +44,6 @@ from struct import pack, unpack
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 """
 
-""" Helper method to retrieve the localhost address and port """
-def get_localhost():
-    host_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    host_socket.connect(('8.8.8.8', 80))
-    
-    # Returns the localhost name: (IP Address, Port No.)
-    localhost = host_socket.getsockname()
-    host_socket.close()
-
-    return localhost
 
 """ Set of constant fields """
 HTTP_STATUS_CODE = 200
@@ -93,7 +84,7 @@ IP_ID = 54321
 IP_TTL = 255
 IP_PROTOCOL = socket.IPPROTO_TCP
 IP_CHECKSUM = 0
-IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
+IP_SRC_ADDRESS = None
 IP_DEST_ADDRESS = socket.inet_aton('')    # TODO: Extract Dest IP addr from the input argument URL
 IP_PADDING = 0
 IP_VER_HEADER_LEN = (IP_VERSION << 4) + IP_HEADER_LEN
@@ -119,7 +110,7 @@ IP_HEADER_SEGMENT_FORMAT = '!4s4s'
 # TODO: Start with IP Header information (P Data packing)
 """ IP and TCP header field keys """
 KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
-KEYS_IP_FIELDS = ['version', 'vhl', 'tos', 'total_len', 'id', 'flags', 'frag_offset', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr']
+KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_length', 'frag_offset']
 
 
 """ Helper method to calculate checksum """
@@ -141,7 +132,7 @@ def compute_header_checksum(header_data):
     return ~binary_checksum & 0xffff
 
 """ Helper method to verify TCP checksum """
-def validate_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tcp_options, payload):
+def validate_tcp_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tcp_options, payload):
     tcp_header = pack(
         TCP_HEADER_SEGMENT_FORMAT, 
         tcp_fields['src_port'], tcp_fields['dest_port'], tcp_fields['seq_num'], tcp_fields['ack_num'], tcp_fields['data_offset'], tcp_fields['flags'], tcp_fields['adv_window'], tcp_fields['checksum'], tcp_fields['urgent_ptr']
@@ -231,7 +222,7 @@ def unpack_tcp_fields(tport_layer_packet):
         pass
 
     # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
-    if (not validate_header_checksum(tcp_headers['checksum'], tcp_headers, tport_layer_packet, tcp_options, payload)):
+    if (not validate_tcp_header_checksum(tcp_headers['checksum'], tcp_headers, tport_layer_packet, tcp_options, payload)):
         # TODO: Throw some error or some shit
         pass
 
@@ -261,3 +252,37 @@ def pack_ip_fields(tport_layer_packet):
     )
 
     return net_layer_packet
+
+""" Helper method to retrieve the localhost address and port """
+def get_localhost():
+    host_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    host_socket.connect(('8.8.8.8', 80))
+    
+    # Returns the localhost name: (IP Address, Port No.)
+    localhost = host_socket.getsockname()
+    host_socket.close()
+
+    return localhost
+
+""" Helper method to extract the destination address from the argument input """
+# Only support standard 'http' urls
+def get_destination_addr(arg_url: str):
+    host_url = arg_url
+    if (arg_url.startswith('http://')):
+        host_url = arg_url[7: ]
+    
+    elif (arg_url.startswith('https://')):
+        # TODO: Exit program
+        pass
+
+    if '/' in host_url:
+        ptr = host_url.find('/')
+        host_url = host_url[ :ptr]
+
+    dest_addr = socket.gethostbyname(host_url)
+    return dest_addr
+
+
+if __name__ == "__main__":
+    IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
+    IP_DEST_ADDRESS = socket.inet_aton((get_destination_addr('http://david.choffnes.com/classes/cs4700sp22/project4.php')))
