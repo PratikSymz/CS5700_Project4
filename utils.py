@@ -1,6 +1,5 @@
 import random, socket
 from struct import pack, unpack
-import struct
 
 
 """ 
@@ -114,7 +113,7 @@ TCP_HEADER_FORMAT = '!HHLLBBHHH'
 TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
 PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
 
-IP_HEADER_FORMAT = '!BBHHHBB'
+IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
 IP_HEADER_SEGMENT_FORMAT = '!4s4s'
 
 # TODO: Start with IP Header information (P Data packing)
@@ -136,7 +135,9 @@ def compute_header_checksum(header_data):
             binary_checksum += ord(header_data[i]) + (ord(header_data[i + 1]) << 8)
 
     # Compute 1's complement
-    binary_checksum += (binary_checksum >> 16)
+    while (binary_checksum >> 16 != 0):
+        binary_checksum = (binary_checksum & 0xffff) + (binary_checksum >> 16)
+    
     return ~binary_checksum & 0xffff
 
 """ Helper method to verify TCP checksum """
@@ -198,8 +199,9 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
         TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window
     ) + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
 
-    tcp_packet = tcp_header + payload.encode(FORMAT)
-    return tcp_packet
+    tport_layer_packet = tcp_header + payload.encode(FORMAT)
+    
+    return tport_layer_packet
 
 """ 
 Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
@@ -242,12 +244,20 @@ Helper method to wrap IP header around the TCP header and data: Takes in tcp pac
     return: Network layer packet with the IP header wrapped around
 """
 def pack_ip_fields(tport_layer_packet):
-    # TODO: Calculate IP Chacksum
-    IP_CHECKSUM = 0
     IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
     IP_DGRAM_LEN = 20 + len(tport_layer_packet)
 
-    ip_header = struct.pack(
+    temp_ip_header = pack(
         IP_HEADER_FORMAT, 
-        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID
+        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, IP_CHECKSUM, IP_SRC_ADDRESS, IP_DEST_ADDRESS
     )
+
+    checksum = compute_header_checksum(temp_ip_header)
+
+    # Repack IP Header with the checksum
+    net_layer_packet = pack(
+        IP_HEADER_FORMAT, 
+        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, checksum, IP_SRC_ADDRESS, IP_DEST_ADDRESS
+    )
+
+    return net_layer_packet
