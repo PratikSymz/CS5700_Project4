@@ -187,11 +187,11 @@ Helper method to unpack TCP fields: Takes in Transport layer packet as param and
 def unpack_tcp_fields(tport_layer_packet):
     # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
     tcp_header_fields = unpack(TCP_HEADER_FORMAT, tport_layer_packet[: 20])
-    tcp_header = dict(zip(KEYS_TCP_FIELDS, tcp_header_fields))
+    tcp_headers = dict(zip(KEYS_TCP_FIELDS, tcp_header_fields))
 
     # Validate presence of any TCP options
     # 1. Shift offset 4 bits from data offset field and get no. of words value
-    options_offset = tcp_header['data_offset'] >> 4
+    options_offset = tcp_headers['data_offset'] >> 4
     tcp_options = None
 
     # If this offset is = 5 words means that Options and Padding fields are empty, so..
@@ -202,7 +202,7 @@ def unpack_tcp_fields(tport_layer_packet):
     net_layer_packet = tport_layer_packet[4 * options_offset :]
 
     # Validate: if packet is headed towards the correct destination port
-    if (tcp_header['dest_port'] != TCP_SOURCE_PORT):
+    if (tcp_headers['dest_port'] != TCP_SOURCE_PORT):
         # TODO: Exit gracefully
         pass
 
@@ -212,9 +212,9 @@ def unpack_tcp_fields(tport_layer_packet):
         IP_SRC_ADDRESS, IP_DEST_ADDRESS, IP_PADDING, IP_PROTOCOL, len(tport_layer_packet)
     )
 
-    if (not validate_header_checksum(tcp_header['checksum'], tport_layer_packet, pseudo_ip_header, tcp_options, net_layer_packet)):
+    if (not validate_header_checksum(tcp_headers['checksum'], tport_layer_packet, pseudo_ip_header, tcp_options, net_layer_packet)):
         # TODO: Throw some error or some shit
         pass
 
     # Return the Network layer packet adn TCP headers
-    return tcp_header, net_layer_packet
+    return tcp_headers, net_layer_packet
