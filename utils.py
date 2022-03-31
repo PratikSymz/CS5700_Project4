@@ -1,5 +1,6 @@
 import random, socket
 from struct import pack, unpack
+import struct
 
 
 """ 
@@ -112,6 +113,7 @@ IP_FLAGS = (FLAG_IP_RSV << 7) + (FLAG_IP_DTF << 6) + (FLAG_IP_MRF << 5) + (FLAG_
 TCP_HEADER_FORMAT = '!HHLLBBHHH'
 TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
 PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
+
 IP_HEADER_FORMAT = '!BBHHHBB'
 IP_HEADER_SEGMENT_FORMAT = '!4s4s'
 
@@ -161,7 +163,7 @@ Helper method to instantiate TCP fields: Takes in TCP fields as params that do n
     3. param: flags - flags that will be changed (SYN, ACK, FIN)
     4. param: adv_window - current advertised window of the receiver # ? Re-evaluate whether we need it
     5. param: data - payload to be send over the raw socket connection
-    6. return: Data packet with the TCP header added on top of the IP header and the payload (data)
+    6. return: Data packet with the TCP header added on top of the payload (data)
 """
 # ? Check if we can split pack and re-pack functions for TCP fields
 def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, payload: str):
@@ -201,8 +203,8 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
 
 """ 
 Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
-    1. param: tport_layer_packet - Data from the Transport layer (TCP header + IP header + payload)
-    2. return: a key-value table of the fields of the TCP header
+    1. param: tport_layer_packet - Data from the Transport layer (TCP header + payload)
+    2. return: a key-value table of the fields of the TCP header and the payload
 """
 def unpack_tcp_fields(tport_layer_packet):
     # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
@@ -231,12 +233,21 @@ def unpack_tcp_fields(tport_layer_packet):
         # TODO: Throw some error or some shit
         pass
 
-    # Return the Network layer packet adn TCP headers
+    # Return the TCP headers and payload
     return tcp_headers, payload
 
 """
-Helper method to instantiate IP fields: Takes in tcp packet as param.
-    param: tcp_packet
+Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
+    param: tcp_packet - packet from the Transport layer and the payload
+    return: Network layer packet with the IP header wrapped around
 """
 def pack_ip_fields(tport_layer_packet):
-    pass
+    # TODO: Calculate IP Chacksum
+    IP_CHECKSUM = 0
+    IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
+    IP_DGRAM_LEN = 20 + len(tport_layer_packet)
+
+    ip_header = struct.pack(
+        IP_HEADER_FORMAT, 
+        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID
+    )
