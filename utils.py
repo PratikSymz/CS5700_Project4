@@ -89,17 +89,29 @@ IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
 IP_DEST_ADDRESS = socket.inet_aton('')    # TODO: Extract Dest IP addr from the input argument URL
 IP_PROTOCOL = socket.IPPROTO_TCP
 IP_PADDING = 0
+IP_VERSION = 4
+IP_HEADER_LEN = 5
+IP_VHL = (IP_VERSION << 4) + IP_HEADER_LEN
+IP_TOS = 0
+IP_ID = 54321
+IP_TOT_LEN = 255
+
+""" IP Flags """
+FRAG_OFFSET = 0
 
 """ Header formats """
 # '!' - Network packet order
 TCP_HEADER_FORMAT = '!HHLLBBHHH'
 TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
 PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
+IP_HEADER_FORMAT = '!BBHHHBB'
+IP_HEADER_SEGMENT_FORMAT = '!4s4s'
 
 # TODO: Start with IP Header information (Fields + Flags + IP Data packing)
 
 """ IP and TCP header field keys """
 KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
+KEYS_IP_FIELDS = ['version', 'vhl', 'tos', 'total_len', 'id', 'flags', 'frag_offset', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr']
 
 """ Helper method to calculate checksum """
 ''' Refereced from Suraj Singh, Bitforestinfo '''
@@ -218,3 +230,10 @@ def unpack_tcp_fields(tport_layer_packet):
 
     # Return the Network layer packet adn TCP headers
     return tcp_header, net_layer_packet
+
+"""
+Helper method to instantiate IP fields: Takes in tcp packet as param.
+    param: tcp_packet
+"""
+def pack_ip_fields(tcp_packet):
+    return
