@@ -116,11 +116,12 @@ PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
 
 IP_HEADER_FORMAT = '!BBHHHBB'
 IP_HEADER_SEGMENT_FORMAT = '!4s4s'
+IP_HEADER_UNPACK_FORMAT = '!BBHHHBBH4s4s'
 
 # TODO: Start with IP Header information (P Data packing)
 """ IP and TCP header field keys """
 KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
-KEYS_IP_FIELDS = ['version', 'vhl', 'tos', 'total_len', 'id', 'flags', 'frag_offset', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr']
+KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_len', 'frag_offset']
 
 
 """ Helper method to calculate checksum """
@@ -251,3 +252,42 @@ def pack_ip_fields(tport_layer_packet):
         IP_HEADER_FORMAT, 
         IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID
     )
+
+"""
+Helper method to unpack the IP fields from the transport layer packet.
+    param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
+    return: network layer packet containing TCP headers and payload
+"""
+def unpack_ip_fields(net_layer_packet):
+    ip_header_fields = struct.unpack(
+        IP_HEADER_UNPACK_FORMAT, net_layer_packet[:20]
+    )
+    ip_headers = dict(zip(KEYS_IP_FIELDS, ip_header_fields))
+
+    ip_headers['version'] = (ip_headers['vhl'] >> 4)
+    ip_headers['header_len'] = (ip_headers['vhl'] & 0x0f)
+    ip_headers['frag_offset'] = (ip_headers['frag_offset'] & 0x1fff)
+
+    options_offset = ip_headers['header_len'] >> 4
+    ip_options = None
+    # check for ip options
+    if (ip_headers['header_len'] > 5):
+        ip_options = net_layer_packet[20:4 * options_offset]
+
+    payload = net_layer_packet[4 * options_offset:]
+
+    if (ip_headers['dest_addr'] != IP_SRC_ADDRESS):
+        # TODO exit
+        pass
+
+    # TODO validate ip checksum
+
+    return ip_headers, payload
+
+"""
+Helper method to convert IP byte string to correct format.
+    param: ip_byte - the byte string format of the IP address
+    return: correct string format of IP address with '.' separators
+"""
+def get_ip(ip_byte):
+    return '.'.join(map(str, ip_byte))
