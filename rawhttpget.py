@@ -1,4 +1,5 @@
-import socket, sys
+from operator import ne
+import socket, sys, utils
 
 class RawSocket:
     # Sender and receiver sockets
@@ -17,3 +18,15 @@ class RawSocket:
             # utils.close_stream(WebCrawler.client_socket_ssl)
             print("Socket creation error: " + str(socket_error))
             sys.exit("Can't connect with socket! Timeout " + "\n")
+
+    """ Helper method to send IP packet to the project server """
+    @staticmethod
+    def send_packet(seq_num: int, ack_num: int, flags: int, adv_window: int, payload: str):
+        tport_layer_packet = utils.pack_tcp_fields(seq_num, ack_num, flags, adv_window, payload)
+        net_layer_packet = utils.pack_ip_fields(tport_layer_packet)
+
+        RawSocket.sender_socket.sendto(net_layer_packet, (utils.get_destination_addr(''), utils.TCP_DEST_PORT))  # type: ignore
+
+
+if __name__ == "__main__":
+    RawSocket()

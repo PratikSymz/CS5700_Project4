@@ -1,4 +1,3 @@
-from ast import arg
 import random, socket
 from struct import pack, unpack
 
@@ -135,7 +134,7 @@ def compute_header_checksum(header_data):
 def validate_tcp_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tcp_options, payload):
     tcp_header = pack(
         TCP_HEADER_SEGMENT_FORMAT, 
-        tcp_fields['src_port'], tcp_fields['dest_port'], tcp_fields['seq_num'], tcp_fields['ack_num'], tcp_fields['data_offset'], tcp_fields['flags'], tcp_fields['adv_window'], tcp_fields['checksum'], tcp_fields['urgent_ptr']
+        tcp_fields['src_port'], tcp_fields['dest_port'], tcp_fields['seq_num'], tcp_fields['ack_num'], tcp_fields['data_offset'], tcp_fields['flags'], tcp_fields['adv_window'], TCP_CHECKSUM, tcp_fields['urgent_ptr']
     ) + tcp_options  # TCP Options wasn't unpacked hence, no need to be packet again
 
     tcp_segment_length = len(tport_layer_packet)    # Already contains payload
