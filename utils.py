@@ -157,6 +157,16 @@ def validate_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tc
     # ? Do I need to create TCP headers again to compute checksum
     return (packet_checksum == compute_header_checksum(tcp_header + payload.encode(FORMAT) + pseudo_ip_header))
 
+def validate_ip_header_checksum(packet_checksum, ip_headers: dict):
+    temp_ip_header = pack(
+        IP_HEADER_FORMAT, 
+        ip_headers['vhl'], ip_headers['tos'], ip_headers['total_len'], ip_headers['id'], ip_headers['flags'], ip_headers['ttl'], ip_headers['protocol'], IP_CHECKSUM, ip_headers['src_addr'], ip_headers['dest_addr']
+    )
+
+    checksum = compute_header_checksum(temp_ip_header)
+
+    return (checksum == packet_checksum)
+
 """ 
 Helper method to instantiate TCP fields: Takes in TCP fields as params that do not remain constant and pack with the data
     1. param: seq_num - sequence number of the current packet
