@@ -46,7 +46,11 @@ from struct import pack, unpack
 
 """ Set of constant fields """
 HTTP_STATUS_CODE = 200
-FORMAT = 'UTF-8'
+FORMAT = 'utf-8'
+
+""" Set of constant fields for HTTP connection """
+HTTP_VERSION = 'HTTP/1.1'
+HOST_NAME_HEADER = 'Host: '
 
 """ TCP Header fields """
 # * https://www.quora.com/When-using-a-localhost-how-many-ports-are-there
@@ -265,23 +269,33 @@ def get_localhost():
 
 """ Helper method to extract the destination address from the argument input """
 # Only support standard 'http' urls
-def get_destination_addr(arg_url: str):
-    host_url = arg_url
+def get_destination_url(arg_url: str):
+    url, host_url = '', ''
+
     if (arg_url.startswith('http://')):
-        host_url = arg_url[7: ]
+        url = arg_url[7: ]
     
     elif (arg_url.startswith('https://')):
         # TODO: Exit program
         pass
 
-    if '/' in host_url:
-        ptr = host_url.find('/')
-        host_url = host_url[ :ptr]
+    if '/' in url:
+        ptr = url.find('/')
+        host_url = url[ :ptr]
 
-    dest_addr = socket.gethostbyname(host_url)
-    return dest_addr
+    return url, host_url
 
+""" Helper method to build HTTP GET request using the argument url """
+def build_GET_request(url: str, host_url: str):
+    message_lines = [
+        'GET http://' + url + ' ' + HTTP_VERSION, 
+        HOST_NAME_HEADER + host_url
+    ]
+    
+    return '\r\n'.join(message_lines) + '\r\n\r\n'
 
 if __name__ == "__main__":
     IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
-    IP_DEST_ADDRESS = socket.inet_aton((get_destination_addr('http://david.choffnes.com/classes/cs4700sp22/project4.php')))
+    IP_DEST_ADDRESS = socket.inet_aton(
+        socket.gethostbyname(get_destination_url('http://david.choffnes.com/classes/cs4700sp22/project4.php')[1])
+    )
