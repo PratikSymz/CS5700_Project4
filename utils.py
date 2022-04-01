@@ -86,7 +86,7 @@ IP_TTL = 255
 IP_PROTOCOL = socket.IPPROTO_TCP
 IP_CHECKSUM = 0
 IP_SRC_ADDRESS = None
-IP_DEST_ADDRESS = socket.inet_aton('')    # TODO: Extract Dest IP addr from the input argument URL
+IP_DEST_ADDRESS = None   # TODO: Extract Dest IP addr from the input argument URL
 IP_PADDING = 0
 IP_VER_HEADER_LEN = (IP_VERSION << 4) + IP_HEADER_LEN
 
@@ -101,7 +101,7 @@ IP_FLAGS = (FLAG_IP_RSV << 7) + (FLAG_IP_DTF << 6) + (FLAG_IP_MRF << 5) + (FLAG_
 """ Header formats """
 # '!' - Network packet order
 TCP_HEADER_FORMAT = '!HHLLBBHHH'
-TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
+# TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
 PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
 
 IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
@@ -130,7 +130,7 @@ def compute_header_checksum(header_data):
     
     return ~binary_checksum & 0xffff
 
-def validate_tcp_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tcp_options, payload):
+def validate_tcp_header_checksum(packet_checksum, tcp_fields: dict, tport_layer_packet, tcp_options, payload: str):
     """ Helper method to verify TCP checksum """
     tcp_header = pack(
         TCP_HEADER_FORMAT, 
@@ -269,30 +269,34 @@ def unpack_ip_fields(net_layer_packet):
         param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
         return: network layer packet containing TCP headers and payload
     """
-    ip_header_fields = struct.unpack(
-        IP_HEADER_FORMAT, net_layer_packet[:20]
+    ip_header_fields = unpack(
+        IP_HEADER_FORMAT, net_layer_packet[ :20]
     )
     ip_headers = dict(zip(KEYS_IP_FIELDS, ip_header_fields))
 
     ip_headers['version'] = (ip_headers['vhl'] >> 4)
-    ip_headers['header_len'] = (ip_headers['vhl'] & 0x0f)
+    ip_headers['header_length'] = (ip_headers['vhl'] & 0x0f)
     ip_headers['frag_offset'] = (ip_headers['frag_offset'] & 0x1fff)
 
     options_offset = ip_headers['header_len'] >> 4
     ip_options = None
     # check for ip options
     if (ip_headers['header_len'] > 5):
-        ip_options = net_layer_packet[20:4 * options_offset]
+        ip_options = net_layer_packet[20 : 4 * options_offset]
 
-    payload = net_layer_packet[4 * options_offset:]
+    # The IP header payload
+    tport_layer_packet = net_layer_packet[4 * options_offset:]
 
     if (ip_headers['dest_addr'] != IP_SRC_ADDRESS):
         # TODO exit
         pass
 
-    # TODO validate ip checksum
+    if (not validate_ip_header_checksum(ip_headers['checksum'], ip_headers)):
+        # TODO: Throw some error or some shit
+        pass
 
-    return ip_headers, payload
+    # Return the IP headers and Transport layer packet
+    return ip_headers, tport_layer_packet
 
 def get_localhost():
     """ Helper method to retrieve the localhost address and port """
