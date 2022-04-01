@@ -43,7 +43,6 @@ from struct import pack, unpack
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 """
 
-
 """ Set of constant fields """
 HTTP_STATUS_CODE = 200
 FORMAT = 'utf-8'
@@ -75,7 +74,6 @@ FLAG_TCP_URG = 0 # Urgent
 FLAG_TCP_PSH = 0 # Push
 TCP_FLAGS = FLAG_TCP_FIN + (FLAG_TCP_SYN << 1) + (FLAG_TCP_RST << 2) + (FLAG_TCP_PSH << 3) + (FLAG_TCP_ACK << 4) + (FLAG_TCP_URG << 5)    # << i: 2^i
 
-
 """ IP Header fields """
 # Convert IP addr dotted-quad string into 32 bit binary format
 # * https://pythontic.com/modules/socket/inet_aton
@@ -100,7 +98,6 @@ FLAG_IP_MRF = 0
 FLAG_IP_FRAG_OFFSET = 0
 IP_FLAGS = (FLAG_IP_RSV << 7) + (FLAG_IP_DTF << 6) + (FLAG_IP_MRF << 5) + (FLAG_IP_FRAG_OFFSET)
 
-
 """ Header formats """
 # '!' - Network packet order
 TCP_HEADER_FORMAT = '!HHLLBBHHH'
@@ -108,17 +105,16 @@ TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
 PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
 
 IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
-IP_HEADER_SEGMENT_FORMAT = '!4s4s'
+#IP_HEADER_SEGMENT_FORMAT = '!4s4s'
 
 # TODO: Start with IP Header information (P Data packing)
 """ IP and TCP header field keys """
 KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
 KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_length', 'frag_offset']
 
-
-""" Helper method to calculate checksum """
-''' Refereced from Suraj Singh, Bitforestinfo '''
 def compute_header_checksum(header_data):
+    """ Helper method to calculate checksum """
+    ''' Refereced from Suraj Singh, Bitforestinfo '''
     binary_checksum = 0
 
     # Loop taking two characters at a time
@@ -134,16 +130,16 @@ def compute_header_checksum(header_data):
     
     return ~binary_checksum & 0xffff
 
-""" Helper method to verify TCP checksum """
 def validate_tcp_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tcp_options, payload):
+    """ Helper method to verify TCP checksum """
     tcp_header = pack(
-        TCP_HEADER_SEGMENT_FORMAT, 
+        TCP_HEADER_FORMAT, 
         tcp_fields['src_port'], tcp_fields['dest_port'], tcp_fields['seq_num'], tcp_fields['ack_num'], tcp_fields['data_offset'], tcp_fields['flags'], tcp_fields['adv_window'], TCP_CHECKSUM, tcp_fields['urgent_ptr']
-    ) + tcp_options  # TCP Options wasn't unpacked hence, no need to be packet again
+    ) + tcp_options  # TCP Options wasn't unpacked hence, no need to be packed again
 
     tcp_segment_length = len(tport_layer_packet)    # Already contains payload
     pseudo_ip_header = pack(
-        PSEUDO_IP_HEADER_FORMAT, 
+        PSEUDO_IP_HEADER_FORMAT,
         IP_SRC_ADDRESS, IP_DEST_ADDRESS, IP_PADDING, IP_PROTOCOL, tcp_segment_length
     )
 
@@ -151,19 +147,30 @@ def validate_tcp_header_checksum(packet_checksum, tcp_fields, tport_layer_packet
     # ? Do I need to create TCP headers again to compute checksum
     return (packet_checksum == compute_header_checksum(tcp_header + payload.encode(FORMAT) + pseudo_ip_header))
 
-""" 
-Helper method to instantiate TCP fields: Takes in TCP fields as params that do not remain constant and pack with the data
-    1. param: seq_num - sequence number of the current packet
-    2. param: ack_num - acknowledgement number of last ACKed packet
-    3. param: flags - flags that will be changed (SYN, ACK, FIN)
-    4. param: adv_window - current advertised window of the receiver # ? Re-evaluate whether we need it
-    5. param: data - payload to be send over the raw socket connection
-    6. return: Data packet with the TCP header added on top of the payload (data)
-"""
+def validate_ip_header_checksum(packet_checksum, ip_headers: dict):
+    """ Helper method to verify IP checksum """
+    temp_ip_header = pack(
+        IP_HEADER_FORMAT,
+        ip_headers['vhl'], ip_headers['tos'], ip_headers['total_len'], ip_headers['id'], ip_headers['flags'], ip_headers['ttl'], ip_headers['protocol'], IP_CHECKSUM, ip_headers['src_addr'], ip_headers['dest_addr']
+    )
+
+    checksum = compute_header_checksum(temp_ip_header)
+
+    return (checksum == packet_checksum)
+
 # ? Check if we can split pack and re-pack functions for TCP fields
 def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, payload: str):
+    """
+    Helper method to instantiate TCP fields: Takes in TCP fields as params that do not remain constant and pack with the data
+        1. param: seq_num - sequence number of the current packet
+        2. param: ack_num - acknowledgement number of last ACKed packet
+        3. param: flags - flags that will be changed (SYN, ACK, FIN)
+        4. param: adv_window - current advertised window of the receiver # ? Re-evaluate whether we need it
+        5. param: data - payload to be send over the raw socket connection
+        6. return: Data packet with the TCP header added on top of the payload (data)
+    """
     temp_tcp_header = pack(
-        TCP_HEADER_FORMAT, 
+        TCP_HEADER_FORMAT,
         TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, flags, adv_window, TCP_CHECKSUM, TCP_URGENT_PTR
     )
 
@@ -180,7 +187,7 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
         * Only used for TCP Checksum calculation, discarded later and not sent to the Network layer
     '''
     pseudo_ip_header = pack(
-        PSEUDO_IP_HEADER_FORMAT, 
+        PSEUDO_IP_HEADER_FORMAT,
         IP_SRC_ADDRESS, IP_DEST_ADDRESS, IP_PADDING, IP_PROTOCOL, tcp_segment_length
     )
 
@@ -189,20 +196,20 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
 
     # Repack TCP header
     tcp_header = pack(
-        TCP_HEADER_SEGMENT_FORMAT, 
-        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window
-    ) + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
+        TCP_HEADER_FORMAT,
+        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window, checksum, TCP_URGENT_PTR
+    ) # prev change: + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
 
     tport_layer_packet = tcp_header + payload.encode(FORMAT)
     
     return tport_layer_packet
 
-""" 
-Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
-    1. param: tport_layer_packet - Data from the Transport layer (TCP header + payload)
-    2. return: a key-value table of the fields of the TCP header and the payload
-"""
 def unpack_tcp_fields(tport_layer_packet):
+    """
+    Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
+        1. param: tport_layer_packet - Data from the Transport layer (TCP header + payload)
+        2. return: a key-value table of the fields of the TCP header and the payload
+    """
     # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
     tcp_header_fields = unpack(TCP_HEADER_FORMAT, tport_layer_packet[: 20])
     tcp_headers = dict(zip(KEYS_TCP_FIELDS, tcp_header_fields))
@@ -232,17 +239,17 @@ def unpack_tcp_fields(tport_layer_packet):
     # Return the TCP headers and payload
     return tcp_headers, payload
 
-"""
-Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
-    param: tcp_packet - packet from the Transport layer and the payload
-    return: Network layer packet with the IP header wrapped around
-"""
 def pack_ip_fields(tport_layer_packet):
+    """
+    Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
+        param: tcp_packet - packet from the Transport layer and the payload
+        return: Network layer packet with the IP header wrapped around
+    """
     IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
     IP_DGRAM_LEN = 20 + len(tport_layer_packet)
 
     temp_ip_header = pack(
-        IP_HEADER_FORMAT, 
+        IP_HEADER_FORMAT,
         IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, IP_CHECKSUM, IP_SRC_ADDRESS, IP_DEST_ADDRESS
     )
 
@@ -250,14 +257,45 @@ def pack_ip_fields(tport_layer_packet):
 
     # Repack IP Header with the checksum
     net_layer_packet = pack(
-        IP_HEADER_FORMAT, 
+        IP_HEADER_FORMAT,
         IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, checksum, IP_SRC_ADDRESS, IP_DEST_ADDRESS
     )
 
     return net_layer_packet
 
-""" Helper method to retrieve the localhost address and port """
+def unpack_ip_fields(net_layer_packet):
+    """
+    Helper method to unpack the IP fields from the transport layer packet.
+        param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
+        return: network layer packet containing TCP headers and payload
+    """
+    ip_header_fields = struct.unpack(
+        IP_HEADER_FORMAT, net_layer_packet[:20]
+    )
+    ip_headers = dict(zip(KEYS_IP_FIELDS, ip_header_fields))
+
+    ip_headers['version'] = (ip_headers['vhl'] >> 4)
+    ip_headers['header_len'] = (ip_headers['vhl'] & 0x0f)
+    ip_headers['frag_offset'] = (ip_headers['frag_offset'] & 0x1fff)
+
+    options_offset = ip_headers['header_len'] >> 4
+    ip_options = None
+    # check for ip options
+    if (ip_headers['header_len'] > 5):
+        ip_options = net_layer_packet[20:4 * options_offset]
+
+    payload = net_layer_packet[4 * options_offset:]
+
+    if (ip_headers['dest_addr'] != IP_SRC_ADDRESS):
+        # TODO exit
+        pass
+
+    # TODO validate ip checksum
+
+    return ip_headers, payload
+
 def get_localhost():
+    """ Helper method to retrieve the localhost address and port """
     host_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     host_socket.connect(('8.8.8.8', 80))
     
@@ -267,9 +305,9 @@ def get_localhost():
 
     return localhost
 
-""" Helper method to extract the destination address from the argument input """
 # Only support standard 'http' urls
 def get_destination_url(arg_url: str):
+    """ Helper method to extract the destination address from the argument input """
     url, host_url = '', ''
 
     if (arg_url.startswith('http://')):
@@ -285,8 +323,8 @@ def get_destination_url(arg_url: str):
 
     return url, host_url
 
-""" Helper method to build HTTP GET request using the argument url """
 def build_GET_request(url: str, host_url: str):
+    """ Helper method to build HTTP GET request using the argument url """
     message_lines = [
         'GET http://' + url + ' ' + HTTP_VERSION, 
         HOST_NAME_HEADER + host_url
