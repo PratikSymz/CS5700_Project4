@@ -18,15 +18,21 @@ class RawSocket:
             print("Socket creation error: " + str(socket_error))
             sys.exit("Can't connect with socket! Timeout " + "\n")
 
-    """ Helper method to send IP packet to the project server """
     @staticmethod
     def send_packet(arg_url: str, seq_num: int, ack_num: int, flags: int, adv_window: int, payload: str):
+        ''' 
+        Helper method to send IP packet to the project server 
+        '''
         tport_layer_packet = utils.pack_tcp_fields(seq_num, ack_num, flags, adv_window, payload)
         net_layer_packet = utils.pack_ip_fields(tport_layer_packet)
 
         dest_addr, dest_port = socket.gethostbyname(utils.get_destination_url(arg_url)[1]), utils.TCP_DEST_PORT
         RawSocket.sender_socket.sendto(net_layer_packet, (dest_addr, dest_port))
 
+    # TODO: Complete TCP handshake method
+    @staticmethod
+    def init_tcp_handshake():
+        pass
 
 if __name__ == "__main__":
     RawSocket()

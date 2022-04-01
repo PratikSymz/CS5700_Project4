@@ -1,4 +1,4 @@
-import random, socket
+import random, socket, sys
 from struct import pack, unpack
 
 
@@ -86,7 +86,7 @@ IP_TTL = 255
 IP_PROTOCOL = socket.IPPROTO_TCP
 IP_CHECKSUM = 0
 IP_SRC_ADDRESS = None
-IP_DEST_ADDRESS = None   # TODO: Extract Dest IP addr from the input argument URL
+IP_DEST_ADDRESS = None
 IP_PADDING = 0
 IP_VER_HEADER_LEN = (IP_VERSION << 4) + IP_HEADER_LEN
 
@@ -110,7 +110,7 @@ IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
 # TODO: Start with IP Header information (P Data packing)
 """ IP and TCP header field keys """
 KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
-KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_length', 'frag_offset']
+KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_len', 'frag_offset']
 
 def compute_header_checksum(header_data):
     """ Helper method to calculate checksum """
@@ -228,13 +228,11 @@ def unpack_tcp_fields(tport_layer_packet):
 
     # Validate: if packet is headed towards the correct destination port
     if (tcp_headers['dest_port'] != TCP_SOURCE_PORT):
-        # TODO: Exit gracefully
-        pass
+        raise ValueError('TCP: Invalid Dest. PORT!')
 
     # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
     if (not validate_tcp_header_checksum(tcp_headers['checksum'], tcp_headers, tport_layer_packet, tcp_options, payload)):
-        # TODO: Throw some error or some shit
-        pass
+        raise ValueError('TCP: Invalid CHECKSUM!')
 
     # Return the TCP headers and payload
     return tcp_headers, payload
@@ -275,7 +273,7 @@ def unpack_ip_fields(net_layer_packet):
     ip_headers = dict(zip(KEYS_IP_FIELDS, ip_header_fields))
 
     ip_headers['version'] = (ip_headers['vhl'] >> 4)
-    ip_headers['header_length'] = (ip_headers['vhl'] & 0x0f)
+    ip_headers['header_len'] = (ip_headers['vhl'] & 0x0f)
     ip_headers['frag_offset'] = (ip_headers['frag_offset'] & 0x1fff)
 
     options_offset = ip_headers['header_len'] >> 4
@@ -285,16 +283,21 @@ def unpack_ip_fields(net_layer_packet):
         ip_options = net_layer_packet[20 : 4 * options_offset]
 
     # The IP header payload
-    tport_layer_packet = net_layer_packet[4 * options_offset:]
+    tport_layer_packet = net_layer_packet[4 * options_offset: ]
 
+    # Verify IP fields
     if (ip_headers['dest_addr'] != IP_SRC_ADDRESS):
-        # TODO exit
-        pass
+        raise ValueError('IP: Invalid Dest. IP ADDR!')
+
+    if (ip_headers['version'] != IP_VERSION):
+        raise ValueError('IP: Invalid NOT IPv4!')
+
+    if (ip_headers['protocol'] != IP_PROTOCOL):
+        raise ValueError('IP: Invalid PROTOCOL!')
 
     if (not validate_ip_header_checksum(ip_headers['checksum'], ip_headers)):
-        # TODO: Throw some error or some shit
-        pass
-
+        raise ValueError('IP: Invalid CHECKSUM!')
+    
     # Return the IP headers and Transport layer packet
     return ip_headers, tport_layer_packet
 
@@ -318,8 +321,7 @@ def get_destination_url(arg_url: str):
         url = arg_url[7: ]
     
     elif (arg_url.startswith('https://')):
-        # TODO: Exit program
-        pass
+        raise ValueError('Invalid URL!')
 
     if '/' in url:
         ptr = url.find('/')
@@ -335,6 +337,7 @@ def build_GET_request(url: str, host_url: str):
     ]
     
     return '\r\n'.join(message_lines) + '\r\n\r\n'
+
 
 if __name__ == "__main__":
     IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
