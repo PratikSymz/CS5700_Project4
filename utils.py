@@ -74,7 +74,6 @@ FLAG_TCP_URG = 0 # Urgent
 FLAG_TCP_PSH = 0 # Push
 TCP_FLAGS = FLAG_TCP_FIN + (FLAG_TCP_SYN << 1) + (FLAG_TCP_RST << 2) + (FLAG_TCP_PSH << 3) + (FLAG_TCP_ACK << 4) + (FLAG_TCP_URG << 5)    # << i: 2^i
 
-
 """ IP Header fields """
 # Convert IP addr dotted-quad string into 32 bit binary format
 # * https://pythontic.com/modules/socket/inet_aton
@@ -99,7 +98,6 @@ FLAG_IP_MRF = 0
 FLAG_IP_FRAG_OFFSET = 0
 IP_FLAGS = (FLAG_IP_RSV << 7) + (FLAG_IP_DTF << 6) + (FLAG_IP_MRF << 5) + (FLAG_IP_FRAG_OFFSET)
 
-
 """ Header formats """
 # '!' - Network packet order
 TCP_HEADER_FORMAT = '!HHLLBBHHH'
@@ -113,7 +111,6 @@ IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
 """ IP and TCP header field keys """
 KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
 KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_length', 'frag_offset']
-
 
 def compute_header_checksum(header_data):
     """ Helper method to calculate checksum """
@@ -242,6 +239,30 @@ def unpack_tcp_fields(tport_layer_packet):
     # Return the TCP headers and payload
     return tcp_headers, payload
 
+def pack_ip_fields(tport_layer_packet):
+    """
+    Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
+        param: tcp_packet - packet from the Transport layer and the payload
+        return: Network layer packet with the IP header wrapped around
+    """
+    IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
+    IP_DGRAM_LEN = 20 + len(tport_layer_packet)
+
+    temp_ip_header = pack(
+        IP_HEADER_FORMAT,
+        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, IP_CHECKSUM, IP_SRC_ADDRESS, IP_DEST_ADDRESS
+    )
+
+    checksum = compute_header_checksum(temp_ip_header)
+
+    # Repack IP Header with the checksum
+    net_layer_packet = pack(
+        IP_HEADER_FORMAT,
+        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, checksum, IP_SRC_ADDRESS, IP_DEST_ADDRESS
+    )
+
+    return net_layer_packet
+
 def unpack_ip_fields(net_layer_packet):
     """
     Helper method to unpack the IP fields from the transport layer packet.
@@ -272,30 +293,6 @@ def unpack_ip_fields(net_layer_packet):
     # TODO validate ip checksum
 
     return ip_headers, payload
-
-def pack_ip_fields(tport_layer_packet):
-    """
-    Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
-        param: tcp_packet - packet from the Transport layer and the payload
-        return: Network layer packet with the IP header wrapped around
-    """
-    IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
-    IP_DGRAM_LEN = 20 + len(tport_layer_packet)
-
-    temp_ip_header = pack(
-        IP_HEADER_FORMAT, 
-        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, IP_CHECKSUM, IP_SRC_ADDRESS, IP_DEST_ADDRESS
-    )
-
-    checksum = compute_header_checksum(temp_ip_header)
-
-    # Repack IP Header with the checksum
-    net_layer_packet = pack(
-        IP_HEADER_FORMAT, 
-        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, checksum, IP_SRC_ADDRESS, IP_DEST_ADDRESS
-    )
-
-    return net_layer_packet
 
 def get_localhost():
     """ Helper method to retrieve the localhost address and port """
