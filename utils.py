@@ -124,9 +124,9 @@ KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset',
 KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_len', 'frag_offset']
 
 
-""" Helper method to calculate checksum """
-''' Refereced from Suraj Singh, Bitforestinfo '''
 def compute_header_checksum(header_data):
+    """ Helper method to calculate checksum """
+    ''' Refereced from Suraj Singh, Bitforestinfo '''
     binary_checksum = 0
 
     # Loop taking two characters at a time
@@ -140,8 +140,10 @@ def compute_header_checksum(header_data):
     binary_checksum += (binary_checksum >> 16)
     return ~binary_checksum & 0xffff
 
-""" Helper method to verify TCP checksum """
 def validate_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tcp_options, payload):
+    """
+    Helper method to verify TCP checksum
+    """
     tcp_header = pack(
         TCP_HEADER_SEGMENT_FORMAT, 
         tcp_fields['src_port'], tcp_fields['dest_port'], tcp_fields['seq_num'], tcp_fields['ack_num'], tcp_fields['data_offset'], tcp_fields['flags'], tcp_fields['adv_window'], tcp_fields['checksum'], tcp_fields['urgent_ptr']
@@ -157,17 +159,17 @@ def validate_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tc
     # ? Do I need to create TCP headers again to compute checksum
     return (packet_checksum == compute_header_checksum(tcp_header + payload.encode(FORMAT) + pseudo_ip_header))
 
-""" 
-Helper method to instantiate TCP fields: Takes in TCP fields as params that do not remain constant and pack with the data
-    1. param: seq_num - sequence number of the current packet
-    2. param: ack_num - acknowledgement number of last ACKed packet
-    3. param: flags - flags that will be changed (SYN, ACK, FIN)
-    4. param: adv_window - current advertised window of the receiver # ? Re-evaluate whether we need it
-    5. param: data - payload to be send over the raw socket connection
-    6. return: Data packet with the TCP header added on top of the payload (data)
-"""
 # ? Check if we can split pack and re-pack functions for TCP fields
 def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, payload: str):
+    """
+    Helper method to instantiate TCP fields: Takes in TCP fields as params that do not remain constant and pack with the data
+        1. param: seq_num - sequence number of the current packet
+        2. param: ack_num - acknowledgement number of last ACKed packet
+        3. param: flags - flags that will be changed (SYN, ACK, FIN)
+        4. param: adv_window - current advertised window of the receiver # ? Re-evaluate whether we need it
+        5. param: data - payload to be send over the raw socket connection
+        6. return: Data packet with the TCP header added on top of the payload (data)
+    """
     temp_tcp_header = pack(
         TCP_HEADER_FORMAT, 
         TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, flags, adv_window, TCP_CHECKSUM, TCP_URGENT_PTR
@@ -202,12 +204,12 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
     tcp_packet = tcp_header + payload.encode(FORMAT)
     return tcp_packet
 
-""" 
-Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
-    1. param: tport_layer_packet - Data from the Transport layer (TCP header + payload)
-    2. return: a key-value table of the fields of the TCP header and the payload
-"""
 def unpack_tcp_fields(tport_layer_packet):
+    """
+    Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
+        1. param: tport_layer_packet - Data from the Transport layer (TCP header + payload)
+        2. return: a key-value table of the fields of the TCP header and the payload
+    """
     # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
     tcp_header_fields = unpack(TCP_HEADER_FORMAT, tport_layer_packet[: 20])
     tcp_headers = dict(zip(KEYS_TCP_FIELDS, tcp_header_fields))
@@ -237,28 +239,29 @@ def unpack_tcp_fields(tport_layer_packet):
     # Return the TCP headers and payload
     return tcp_headers, payload
 
-"""
-Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
-    param: tcp_packet - packet from the Transport layer and the payload
-    return: Network layer packet with the IP header wrapped around
-"""
 def pack_ip_fields(tport_layer_packet):
-    # TODO: Calculate IP Chacksum
+    """
+    Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
+        param: tcp_packet - packet from the Transport layer and the payload
+        return: Network layer packet with the IP header wrapped around
+    """
+    # TODO: Calculate IP Checksum
     IP_CHECKSUM = 0
+    # TODO add time seeder before rand
     IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
     IP_DGRAM_LEN = 20 + len(tport_layer_packet)
 
     ip_header = struct.pack(
-        IP_HEADER_FORMAT, 
+        IP_HEADER_FORMAT,
         IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID
     )
 
-"""
-Helper method to unpack the IP fields from the transport layer packet.
-    param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
-    return: network layer packet containing TCP headers and payload
-"""
 def unpack_ip_fields(net_layer_packet):
+    """
+    Helper method to unpack the IP fields from the transport layer packet.
+        param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
+        return: network layer packet containing TCP headers and payload
+    """
     ip_header_fields = struct.unpack(
         IP_HEADER_UNPACK_FORMAT, net_layer_packet[:20]
     )
@@ -284,10 +287,10 @@ def unpack_ip_fields(net_layer_packet):
 
     return ip_headers, payload
 
-"""
-Helper method to convert IP byte string to correct format.
-    param: ip_byte - the byte string format of the IP address
-    return: correct string format of IP address with '.' separators
-"""
 def get_ip(ip_byte):
+    """
+    Helper method to convert IP byte string to correct format.
+        param: ip_byte - the byte string format of the IP address
+        return: correct string format of IP address with '.' separators
+    """
     return '.'.join(map(str, ip_byte))
