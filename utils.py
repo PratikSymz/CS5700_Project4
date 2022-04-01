@@ -1,6 +1,5 @@
 import random, socket
 from struct import pack, unpack
-import struct
 
 
 """ 
@@ -44,20 +43,13 @@ import struct
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 """
 
-def get_localhost():
-    """ Helper method to retrieve the localhost address and port """
-    host_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    host_socket.connect(('8.8.8.8', 80))
-
-    # Returns the localhost name: (IP Address, Port No.)
-    localhost = host_socket.getsockname()
-    host_socket.close()
-
-    return localhost
-
 """ Set of constant fields """
 HTTP_STATUS_CODE = 200
-FORMAT = 'UTF-8'
+FORMAT = 'utf-8'
+
+""" Set of constant fields for HTTP connection """
+HTTP_VERSION = 'HTTP/1.1'
+HOST_NAME_HEADER = 'Host: '
 
 """ TCP Header fields """
 # * https://www.quora.com/When-using-a-localhost-how-many-ports-are-there
@@ -94,7 +86,7 @@ IP_ID = 54321
 IP_TTL = 255
 IP_PROTOCOL = socket.IPPROTO_TCP
 IP_CHECKSUM = 0
-IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
+IP_SRC_ADDRESS = None
 IP_DEST_ADDRESS = socket.inet_aton('')    # TODO: Extract Dest IP addr from the input argument URL
 IP_PADDING = 0
 IP_VER_HEADER_LEN = (IP_VERSION << 4) + IP_HEADER_LEN
@@ -114,14 +106,13 @@ TCP_HEADER_FORMAT = '!HHLLBBHHH'
 TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
 PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
 
-# IP_HEADER_FORMAT = '!BBHHHBB'
-# IP_HEADER_SEGMENT_FORMAT = '!4s4s'
 IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
+#IP_HEADER_SEGMENT_FORMAT = '!4s4s'
 
 # TODO: Start with IP Header information (P Data packing)
 """ IP and TCP header field keys """
 KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
-KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_len', 'frag_offset']
+KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_length', 'frag_offset']
 
 
 def compute_header_checksum(header_data):
@@ -137,16 +128,16 @@ def compute_header_checksum(header_data):
             binary_checksum += ord(header_data[i]) + (ord(header_data[i + 1]) << 8)
 
     # Compute 1's complement
-    binary_checksum += (binary_checksum >> 16)
+    while (binary_checksum >> 16 != 0):
+        binary_checksum = (binary_checksum & 0xffff) + (binary_checksum >> 16)
+    
     return ~binary_checksum & 0xffff
 
-def validate_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tcp_options, payload):
-    """
-    Helper method to verify TCP checksum
-    """
+def validate_tcp_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tcp_options, payload):
+    """ Helper method to verify TCP checksum """
     tcp_header = pack(
-        TCP_HEADER_FORMAT,
-        tcp_fields['src_port'], tcp_fields['dest_port'], tcp_fields['seq_num'], tcp_fields['ack_num'], tcp_fields['data_offset'], tcp_fields['flags'], tcp_fields['adv_window'], tcp_fields['checksum'], tcp_fields['urgent_ptr']
+        TCP_HEADER_FORMAT, 
+        tcp_fields['src_port'], tcp_fields['dest_port'], tcp_fields['seq_num'], tcp_fields['ack_num'], tcp_fields['data_offset'], tcp_fields['flags'], tcp_fields['adv_window'], TCP_CHECKSUM, tcp_fields['urgent_ptr']
     ) + tcp_options  # TCP Options wasn't unpacked hence, no need to be packed again
 
     tcp_segment_length = len(tport_layer_packet)    # Already contains payload
@@ -160,9 +151,7 @@ def validate_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tc
     return (packet_checksum == compute_header_checksum(tcp_header + payload.encode(FORMAT) + pseudo_ip_header))
 
 def validate_ip_header_checksum(packet_checksum, ip_headers: dict):
-    """
-    Helper method to verify IP checksum
-    """
+    """ Helper method to verify IP checksum """
     temp_ip_header = pack(
         IP_HEADER_FORMAT,
         ip_headers['vhl'], ip_headers['tos'], ip_headers['total_len'], ip_headers['id'], ip_headers['flags'], ip_headers['ttl'], ip_headers['protocol'], IP_CHECKSUM, ip_headers['src_addr'], ip_headers['dest_addr']
@@ -214,8 +203,9 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
         TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window, checksum, TCP_URGENT_PTR
     ) # prev change: + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
 
-    tcp_packet = tcp_header + payload.encode(FORMAT)
-    return tcp_packet
+    tport_layer_packet = tcp_header + payload.encode(FORMAT)
+    
+    return tport_layer_packet
 
 def unpack_tcp_fields(tport_layer_packet):
     """
@@ -245,29 +235,12 @@ def unpack_tcp_fields(tport_layer_packet):
         pass
 
     # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
-    if (not validate_header_checksum(tcp_headers['checksum'], tcp_headers, tport_layer_packet, tcp_options, payload)):
+    if (not validate_tcp_header_checksum(tcp_headers['checksum'], tcp_headers, tport_layer_packet, tcp_options, payload)):
         # TODO: Throw some error or some shit
         pass
 
     # Return the TCP headers and payload
     return tcp_headers, payload
-
-def pack_ip_fields(tport_layer_packet):
-    """
-    Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
-        param: tcp_packet - packet from the Transport layer and the payload
-        return: Network layer packet with the IP header wrapped around
-    """
-    # TODO: Calculate IP Checksum
-    IP_CHECKSUM = 0
-    # TODO add time seeder before rand
-    IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
-    IP_DGRAM_LEN = 20 + len(tport_layer_packet)
-
-    ip_header = struct.pack(
-        IP_HEADER_FORMAT,
-        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID
-    )
 
 def unpack_ip_fields(net_layer_packet):
     """
@@ -300,10 +273,70 @@ def unpack_ip_fields(net_layer_packet):
 
     return ip_headers, payload
 
-def get_ip(ip_byte):
+def pack_ip_fields(tport_layer_packet):
     """
-    Helper method to convert IP byte string to correct format.
-        param: ip_byte - the byte string format of the IP address
-        return: correct string format of IP address with '.' separators
+    Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
+        param: tcp_packet - packet from the Transport layer and the payload
+        return: Network layer packet with the IP header wrapped around
     """
-    return '.'.join(map(str, ip_byte))
+    IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
+    IP_DGRAM_LEN = 20 + len(tport_layer_packet)
+
+    temp_ip_header = pack(
+        IP_HEADER_FORMAT, 
+        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, IP_CHECKSUM, IP_SRC_ADDRESS, IP_DEST_ADDRESS
+    )
+
+    checksum = compute_header_checksum(temp_ip_header)
+
+    # Repack IP Header with the checksum
+    net_layer_packet = pack(
+        IP_HEADER_FORMAT, 
+        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, checksum, IP_SRC_ADDRESS, IP_DEST_ADDRESS
+    )
+
+    return net_layer_packet
+
+def get_localhost():
+    """ Helper method to retrieve the localhost address and port """
+    host_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    host_socket.connect(('8.8.8.8', 80))
+    
+    # Returns the localhost name: (IP Address, Port No.)
+    localhost = host_socket.getsockname()
+    host_socket.close()
+
+    return localhost
+
+# Only support standard 'http' urls
+def get_destination_url(arg_url: str):
+    """ Helper method to extract the destination address from the argument input """
+    url, host_url = '', ''
+
+    if (arg_url.startswith('http://')):
+        url = arg_url[7: ]
+    
+    elif (arg_url.startswith('https://')):
+        # TODO: Exit program
+        pass
+
+    if '/' in url:
+        ptr = url.find('/')
+        host_url = url[ :ptr]
+
+    return url, host_url
+
+def build_GET_request(url: str, host_url: str):
+    """ Helper method to build HTTP GET request using the argument url """
+    message_lines = [
+        'GET http://' + url + ' ' + HTTP_VERSION, 
+        HOST_NAME_HEADER + host_url
+    ]
+    
+    return '\r\n'.join(message_lines) + '\r\n\r\n'
+
+if __name__ == "__main__":
+    IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
+    IP_DEST_ADDRESS = socket.inet_aton(
+        socket.gethostbyname(get_destination_url('http://david.choffnes.com/classes/cs4700sp22/project4.php')[1])
+    )
