@@ -44,11 +44,11 @@ import struct
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 """
 
-""" Helper method to retrieve the localhost address and port """
 def get_localhost():
+    """ Helper method to retrieve the localhost address and port """
     host_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     host_socket.connect(('8.8.8.8', 80))
-    
+
     # Returns the localhost name: (IP Address, Port No.)
     localhost = host_socket.getsockname()
     host_socket.close()
@@ -114,9 +114,9 @@ TCP_HEADER_FORMAT = '!HHLLBBHHH'
 TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
 PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
 
-IP_HEADER_FORMAT = '!BBHHHBB'
-IP_HEADER_SEGMENT_FORMAT = '!4s4s'
-IP_HEADER_UNPACK_FORMAT = '!BBHHHBBH4s4s'
+# IP_HEADER_FORMAT = '!BBHHHBB'
+# IP_HEADER_SEGMENT_FORMAT = '!4s4s'
+IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
 
 # TODO: Start with IP Header information (P Data packing)
 """ IP and TCP header field keys """
@@ -145,13 +145,13 @@ def validate_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tc
     Helper method to verify TCP checksum
     """
     tcp_header = pack(
-        TCP_HEADER_SEGMENT_FORMAT, 
+        TCP_HEADER_FORMAT,
         tcp_fields['src_port'], tcp_fields['dest_port'], tcp_fields['seq_num'], tcp_fields['ack_num'], tcp_fields['data_offset'], tcp_fields['flags'], tcp_fields['adv_window'], tcp_fields['checksum'], tcp_fields['urgent_ptr']
-    ) + tcp_options  # TCP Options wasn't unpacked hence, no need to be packet again
+    ) + tcp_options  # TCP Options wasn't unpacked hence, no need to be packed again
 
     tcp_segment_length = len(tport_layer_packet)    # Already contains payload
     pseudo_ip_header = pack(
-        PSEUDO_IP_HEADER_FORMAT, 
+        PSEUDO_IP_HEADER_FORMAT,
         IP_SRC_ADDRESS, IP_DEST_ADDRESS, IP_PADDING, IP_PROTOCOL, tcp_segment_length
     )
 
@@ -160,8 +160,11 @@ def validate_header_checksum(packet_checksum, tcp_fields, tport_layer_packet, tc
     return (packet_checksum == compute_header_checksum(tcp_header + payload.encode(FORMAT) + pseudo_ip_header))
 
 def validate_ip_header_checksum(packet_checksum, ip_headers: dict):
+    """
+    Helper method to verify IP checksum
+    """
     temp_ip_header = pack(
-        IP_HEADER_FORMAT, 
+        IP_HEADER_FORMAT,
         ip_headers['vhl'], ip_headers['tos'], ip_headers['total_len'], ip_headers['id'], ip_headers['flags'], ip_headers['ttl'], ip_headers['protocol'], IP_CHECKSUM, ip_headers['src_addr'], ip_headers['dest_addr']
     )
 
@@ -181,7 +184,7 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
         6. return: Data packet with the TCP header added on top of the payload (data)
     """
     temp_tcp_header = pack(
-        TCP_HEADER_FORMAT, 
+        TCP_HEADER_FORMAT,
         TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, flags, adv_window, TCP_CHECKSUM, TCP_URGENT_PTR
     )
 
@@ -198,7 +201,7 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
         * Only used for TCP Checksum calculation, discarded later and not sent to the Network layer
     '''
     pseudo_ip_header = pack(
-        PSEUDO_IP_HEADER_FORMAT, 
+        PSEUDO_IP_HEADER_FORMAT,
         IP_SRC_ADDRESS, IP_DEST_ADDRESS, IP_PADDING, IP_PROTOCOL, tcp_segment_length
     )
 
@@ -207,9 +210,9 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
 
     # Repack TCP header
     tcp_header = pack(
-        TCP_HEADER_SEGMENT_FORMAT, 
-        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window
-    ) + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
+        TCP_HEADER_FORMAT,
+        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window, checksum, TCP_URGENT_PTR
+    ) # prev change: + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
 
     tcp_packet = tcp_header + payload.encode(FORMAT)
     return tcp_packet
@@ -273,7 +276,7 @@ def unpack_ip_fields(net_layer_packet):
         return: network layer packet containing TCP headers and payload
     """
     ip_header_fields = struct.unpack(
-        IP_HEADER_UNPACK_FORMAT, net_layer_packet[:20]
+        IP_HEADER_FORMAT, net_layer_packet[:20]
     )
     ip_headers = dict(zip(KEYS_IP_FIELDS, ip_header_fields))
 
