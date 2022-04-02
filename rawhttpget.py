@@ -1,5 +1,6 @@
 import socket, sys, utils
 
+
 class RawSocket:
     # Sender and receiver sockets
     sender_socket, receiver_socket = socket.socket(), socket.socket()
@@ -8,6 +9,7 @@ class RawSocket:
     IP_TIMEOUT = 3 * 60     # IP Timeout: 3 minutes
     BUFFER_SIZE = pow(2, 16) - 1    # MAX IP packet length
     BIT_SYN_ACK = 0x12      # Hex value of 010010 where SYN/ACK are both 1
+    BIT_ACK = 0x10      # Hex value of 010000 where ACK is 1
 
     def __init__(self):
         try:
@@ -25,18 +27,16 @@ class RawSocket:
 
     @staticmethod
     def send_packet(arg_url: str, seq_num: int, ack_num: int, flags: int, adv_window: int, payload: str):
-        ''' 
-        Helper method to send IP packet to the project server 
-        '''
+        ''' Helper method to send IP packet to the project server '''
         tport_layer_packet = utils.pack_tcp_fields(seq_num, ack_num, flags, adv_window, payload)
         net_layer_packet = utils.pack_ip_fields(tport_layer_packet)
 
         dest_addr, dest_port = socket.gethostbyname(utils.get_destination_url(arg_url)[1]), utils.TCP_DEST_PORT
         RawSocket.sender_socket.sendto(net_layer_packet, (dest_addr, dest_port))
 
-    # TODO: Complete TCP handshake method
     @staticmethod
     def init_tcp_handshake():
+        ''' Helper method to initiate the TCP three-way handshake: SYN, SYN/ACK, ACK '''
         # Set TCP flags - SYN = 1 (by default), others all 0
         utils.TCP_FLAGS = utils.set_tcp_flags()
 
@@ -70,13 +70,35 @@ class RawSocket:
                 sys.exit("Invalid data received! Timeout " + "\n")
 
             # Parse TCP headers (flags) for ACK message: SYN/ACK<1, 1> bit both 1
-            if (tcp_headers['flags'] & RawSocket.BIT_SYN_ACK == RawSocket.BIT_SYN_ACK):
+            if (tcp_headers["flags"] & RawSocket.BIT_SYN_ACK == RawSocket.BIT_SYN_ACK):
                 # Once server ACK received, break from loop and send third SYN + payload to complete the handshake
                 break
         
         # Send final ACK and finish handshake
-        # if (tcp_headers['seq_num'] tcp_headers['ack_num']):
-        #     pass
+        # At end of SYN/ACK <1S, 2C>
+        if (tcp_headers["seq_num"] == tcp_headers["ack_num"] - 1):
+            # Complete handshake procedure
+            # ACK received for Client side, update SEQ_NUM and send ACK to Server
+            utils.TCP_SEQ_NUM += 1
+
+            # Update ACK for Server side
+            utils.TCP_ACK_NUM = tcp_headers["seq_num"] + 1
+
+            # Set TCP flags for final ACK message (for Server)
+            utils.TCP_FLAGS = RawSocket.BIT_ACK
+
+            # Send final handshake message
+            RawSocket.send_packet('', utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, utils.TCP_FLAGS, utils.TCP_ADV_WINDOW, '')
+
+        else:
+            sys.exit("3-Way Handshake failed!!!" + "\n")
+
+    @staticmethod
+    def close_connection():
+        ''' Helper method to close connection with the server based on TCP flags '''
+        # TODO: Complete closeConnection() method
+        pass
+
 
 if __name__ == "__main__":
     RawSocket()
