@@ -1,4 +1,4 @@
-import random, socket, sys
+import random, socket
 from struct import pack, unpack
 
 
@@ -72,7 +72,7 @@ FLAG_TCP_RST = 0 # Reset
 FLAG_TCP_FIN = 0 # Finish
 FLAG_TCP_URG = 0 # Urgent
 FLAG_TCP_PSH = 0 # Push
-TCP_FLAGS = FLAG_TCP_FIN + (FLAG_TCP_SYN << 1) + (FLAG_TCP_RST << 2) + (FLAG_TCP_PSH << 3) + (FLAG_TCP_ACK << 4) + (FLAG_TCP_URG << 5)    # << i: 2^i
+TCP_FLAGS = (FLAG_TCP_URG << 5) + (FLAG_TCP_ACK << 4) + (FLAG_TCP_PSH << 3) + (FLAG_TCP_RST << 2) + (FLAG_TCP_SYN << 1) + FLAG_TCP_FIN      # << i: 2^i
 
 """ IP Header fields """
 # Convert IP addr dotted-quad string into 32 bit binary format
@@ -228,11 +228,11 @@ def unpack_tcp_fields(tport_layer_packet):
 
     # Validate: if packet is headed towards the correct destination port
     if (tcp_headers['dest_port'] != TCP_SOURCE_PORT):
-        raise ValueError('TCP: Invalid Dest. PORT!')
+        raise Exception('TCP: Invalid Dest. PORT!')
 
     # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
     if (not validate_tcp_header_checksum(tcp_headers['checksum'], tcp_headers, tport_layer_packet, tcp_options, payload)):
-        raise ValueError('TCP: Invalid CHECKSUM!')
+        raise Exception('TCP: Invalid CHECKSUM!')
 
     # Return the TCP headers and payload
     return tcp_headers, payload
@@ -287,16 +287,16 @@ def unpack_ip_fields(net_layer_packet):
 
     # Verify IP fields
     if (ip_headers['dest_addr'] != IP_SRC_ADDRESS):
-        raise ValueError('IP: Invalid Dest. IP ADDR!')
+        raise Exception('IP: Invalid Dest. IP ADDR!')
 
     if (ip_headers['version'] != IP_VERSION):
-        raise ValueError('IP: Invalid NOT IPv4!')
+        raise Exception('IP: Invalid NOT IPv4!')
 
     if (ip_headers['protocol'] != IP_PROTOCOL):
-        raise ValueError('IP: Invalid PROTOCOL!')
+        raise Exception('IP: Invalid PROTOCOL!')
 
     if (not validate_ip_header_checksum(ip_headers['checksum'], ip_headers)):
-        raise ValueError('IP: Invalid CHECKSUM!')
+        raise Exception('IP: Invalid CHECKSUM!')
     
     # Return the IP headers and Transport layer packet
     return ip_headers, tport_layer_packet
@@ -321,7 +321,7 @@ def get_destination_url(arg_url: str):
         url = arg_url[7: ]
     
     elif (arg_url.startswith('https://')):
-        raise ValueError('Invalid URL!')
+        raise Exception('Invalid URL!')
 
     if '/' in url:
         ptr = url.find('/')
@@ -338,6 +338,8 @@ def build_GET_request(url: str, host_url: str):
     
     return '\r\n'.join(message_lines) + '\r\n\r\n'
 
+def set_tcp_flags():
+    return FLAG_TCP_FIN + (FLAG_TCP_SYN << 1) + (FLAG_TCP_RST << 2) + (FLAG_TCP_PSH << 3) + (FLAG_TCP_ACK << 4) + (FLAG_TCP_URG << 5)
 
 if __name__ == "__main__":
     IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
