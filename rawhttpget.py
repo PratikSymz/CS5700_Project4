@@ -10,6 +10,7 @@ class RawSocket:
     BUFFER_SIZE = pow(2, 16) - 1    # MAX IP packet length
     BIT_SYN_ACK = 0x12      # Hex value of 010010 where SYN/ACK are both 1
     BIT_ACK = 0x10      # Hex value of 010000 where ACK is 1
+    BIT_FIN_ACK = 0x11      # Hex value of 010001 where ACK and FIN are both 1 for closing connection
 
     def __init__(self):
         try:
@@ -96,9 +97,58 @@ class RawSocket:
     @staticmethod
     def close_connection():
         ''' Helper method to close connection with the server based on TCP flags '''
-        # TODO: Complete closeConnection() method
-        pass
+        ''' https://medium.com/@cspsprotocols247/tcp-connenction-termination-what-is-fin-fin-ack-rst-and-rst-ack-1a5032d346fb '''
+        # Set TCP flags - FIN/ACK<1, 1>
+        utils.TCP_FLAGS = RawSocket.BIT_FIN_ACK
 
+        # 1. Send packet from Network layer with TCP FIN = 1 and ACK = 1 for payload: FIN/ACK<1, 1>
+        RawSocket.send_packet('', utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, utils.TCP_FLAGS, utils.TCP_ADV_WINDOW, '')
+
+        while True:
+            ''' Continue receiving packets until FIN/ACK<> message is received '''
+            # Receive Network layer packet from the server
+            try:
+                net_layer_packet = RawSocket.receiver_socket.recv(RawSocket.BUFFER_SIZE)
+
+            except socket.timeout as socket_timeout:
+                print("Socket timeout: " + str(socket_timeout))
+                sys.exit("No data received! Timeout " + "\n")
+
+            # Parse Network layer packet
+            try:
+                ip_headers, tport_layer_packet = utils.unpack_ip_fields(net_layer_packet)
+
+            except socket.error as socket_error:
+                print("Invalid IP packet: " + str(socket_error))
+                sys.exit("Invalid data received! Timeout " + "\n")
+
+            # Parse Transport layer packet
+            try:
+                tcp_headers, payload = utils.unpack_tcp_fields(tport_layer_packet)
+
+            except socket.error as socket_error:
+                print("Invalid TCP packet: " + str(socket_error))
+                sys.exit("Invalid data received! Timeout " + "\n")
+
+            # Parse TCP headers (flags) for FIN/ACK message: FIN/ACK<1, 1>
+            if (tcp_headers["flags"] & RawSocket.BIT_FIN_ACK == RawSocket.BIT_FIN_ACK):
+                # Once server FIN/ACK received, break from loop
+                break
+
+        # utils.TCP_ACK_NUM = tcp_headers["ack_num"]
+        if (tcp_headers["seq_num"] == tcp_headers["ack_num"] - 1):
+            # Complete connection teardown
+            # ACK received for Client side, update SEQ_NUM
+            utils.TCP_SEQ_NUM = tcp_headers["seq_num"]
+
+            # Update ACK for Server side
+            utils.TCP_ACK_NUM = tcp_headers["seq_num"] + 1
+            
+            # Send final ACK to Server to terminate connection
+            utils.TCP_FLAGS = RawSocket.BIT_ACK
+
+            # Send the final ACK to the server to terminate the connection
+            RawSocket.send_packet('', utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, utils.TCP_FLAGS, utils.TCP_ADV_WINDOW, '')
 
 if __name__ == "__main__":
     RawSocket()
