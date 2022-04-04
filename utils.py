@@ -54,7 +54,7 @@ HOST_NAME_HEADER = 'Host: '
 ''' TCP Header fields '''
 # * https://www.quora.com/When-using-a-localhost-how-many-ports-are-there
 # * https://stackoverflow.com/questions/21253474/source-port-vs-destination-port
-TCP_SOURCE_PORT = random.randint(0, pow(2, 16) - 1)
+TCP_SOURCE_PORT = random.randint(49152, 65535)
 TCP_DEST_PORT = 80
 TCP_SEQ_NUM = random.randint(0, pow(2, 32) - 1)
 TCP_ACK_NUM = 0
@@ -65,14 +65,17 @@ TCP_URGENT_PTR = 0
 TCP_CWND = 1
 
 # * https://www.howtouselinux.com/post/tcp-flags#:~:text=TCP%20flags%20are%20various%20types,%2C%20fin%2C%20urg%2C%20psh.
-''' TCP Flags '''
-FLAG_TCP_SYN = 1 # Synchronize (1: Sync Sequence numbers)
-FLAG_TCP_ACK = 0 # Acknowledgement
-FLAG_TCP_RST = 0 # Reset
-FLAG_TCP_FIN = 0 # Finish
-FLAG_TCP_URG = 0 # Urgent
-FLAG_TCP_PSH = 0 # Push
-TCP_FLAGS = (FLAG_TCP_URG << 5) + (FLAG_TCP_ACK << 4) + (FLAG_TCP_PSH << 3) + (FLAG_TCP_RST << 2) + (FLAG_TCP_SYN << 1) + FLAG_TCP_FIN      # << i: 2^i
+''' 
+TCP Flags
+    1. Finish: FLAG_TCP_FIN, 
+    2. Synchronize: FLAG_TCP_SYN, 
+    3. Reset: FLAG_TCP_RST, 
+    4. Push: FLAG_TCP_PSH, 
+    5. Acknowledgement: FLAG_TCP_ACK, 
+    6. Urgent: FLAG_TCP_URG
+'''
+FLAGS_TCP = {"FLAG_TCP_FIN": 0, "FLAG_TCP_SYN": 0, "FLAG_TCP_RST": 0, "FLAG_TCP_PSH": 0, "FLAG_TCP_ACK": 0, "FLAG_TCP_URG": 0}
+
 
 ''' IP Header fields '''
 # Convert IP addr dotted-quad string into 32 bit binary format
@@ -197,7 +200,7 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
     # Repack TCP header
     tcp_header = pack(
         TCP_HEADER_FORMAT,
-        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, TCP_FLAGS, adv_window, checksum, TCP_URGENT_PTR
+        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, flags, adv_window, checksum, TCP_URGENT_PTR
     ) # prev change: + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
 
     tport_layer_packet = tcp_header + payload.encode(FORMAT)
@@ -267,9 +270,7 @@ def unpack_ip_fields(net_layer_packet):
         param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
         return: network layer packet containing TCP headers and payload
     '''
-    ip_header_fields = unpack(
-        IP_HEADER_FORMAT, net_layer_packet[ :20]
-    )
+    ip_header_fields = unpack(IP_HEADER_FORMAT, net_layer_packet[ :20])
     ip_headers = dict(zip(KEYS_IP_FIELDS, ip_header_fields))
 
     ip_headers["version"] = (ip_headers["vhl"] >> 4)
@@ -301,8 +302,8 @@ def unpack_ip_fields(net_layer_packet):
     # Return the IP headers and Transport layer packet
     return ip_headers, tport_layer_packet
 
-def get_localhost():
-    ''' Helper method to retrieve the localhost address and port '''
+def get_localhost_addr():
+    ''' Helper method to retrieve the localhost IP address '''
     host_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     host_socket.connect(('8.8.8.8', 80))
     
@@ -310,7 +311,21 @@ def get_localhost():
     localhost = host_socket.getsockname()
     host_socket.close()
 
-    return localhost
+    return localhost[0]
+
+def get_localhost_port(receiver_socket, receiver_ip):
+    ''' Helper method to determine the available localhost Port no. '''
+    random_port = 0
+    while True:
+        random_port = random.randint(49152, 65535)
+        try:
+            receiver_socket.bind((receiver_ip, random_port))
+        except:
+            continue    # Current port not available. Try again!
+        else:
+            break       # Found available port
+
+    return random_port
 
 # Only support standard 'http' urls
 def get_destination_url(arg_url: str):
@@ -338,11 +353,38 @@ def build_GET_request(url: str, host_url: str):
     
     return '\r\n'.join(message_lines) + '\r\n\r\n'
 
-def set_tcp_flags():
-    return FLAG_TCP_FIN + (FLAG_TCP_SYN << 1) + (FLAG_TCP_RST << 2) + (FLAG_TCP_PSH << 3) + (FLAG_TCP_ACK << 4) + (FLAG_TCP_URG << 5)
+def concat_tcp_flags(tcp_flags: dict):
+    return tcp_flags["FLAG_TCP_FIN"] + (tcp_flags["FLAG_TCP_SYN"] << 1) + (tcp_flags["FLAG_TCP_RST"] << 2) + (tcp_flags["FLAG_TCP_PSH"] << 3) + (tcp_flags["FLAG_TCP_ACK"] << 4) + (tcp_flags["FLAG_TCP_URG"] << 5)
+
+def set_syn_bit(tcp_flags: dict):
+    tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
+    tcp_flags["FLAG_TCP_SYN"] = 1
+
+    return tcp_flags
+
+def set_syn_ack_bits(tcp_flags: dict):
+    tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
+    tcp_flags["FLAG_TCP_SYN"] = 1
+    tcp_flags["FLAG_TCP_ACK"] = 1
+
+    return tcp_flags
+
+def set_ack_bit(tcp_flags: dict):
+    tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
+    tcp_flags["FLAG_TCP_ACK"] = 1
+
+    return tcp_flags
+
+def set_fin_ack_bits(tcp_flags: dict):
+    tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
+    tcp_flags["FLAG_TCP_FIN"] = 1
+    tcp_flags["FLAG_TCP_ACK"] = 1
+
+    return tcp_flags
+
 
 if __name__ == "__main__":
-    IP_SRC_ADDRESS = socket.inet_aton(get_localhost()[0])
+    IP_SRC_ADDRESS = socket.inet_aton(get_localhost_addr()[0])
     IP_DEST_ADDRESS = socket.inet_aton(
         socket.gethostbyname(get_destination_url('http://david.choffnes.com/classes/cs4700sp22/project4.php')[1])
     )
