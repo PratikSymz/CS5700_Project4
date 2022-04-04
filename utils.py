@@ -329,6 +329,20 @@ def get_destination_url(arg_url: str):
 
     return url, host_url
 
+def get_filepath(arg_url: str):
+    ''' Helper method to get the file path name from the url '''
+    fp, url = ''
+
+    if (arg_url.startswith('https://')):
+        raise Exception('Invalid URL')
+
+    url = arg_url[7: ]
+    if ('/' in url):
+        ptr = url.find('/')
+        fp = url[ptr: ]
+
+    return fp
+
 def build_GET_request(url: str, host_url: str):
     """ Helper method to build HTTP GET request using the argument url """
     message_lines = [
