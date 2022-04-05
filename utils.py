@@ -358,6 +358,22 @@ def get_filepath(arg_url: str):
 
     return fp
 
+def get_filename(url_path: str):
+    '''
+    Helper method to get the filename from the given path
+        param: url_path - either a full url or the file path of the webpage
+        return: filename string to be used to write content into
+    '''
+    fn = ''
+    split_path = url_path.split('/')
+
+    if (split_path[-1] == '' or split_path[-1].count('.') > 1):
+        fn = 'index.html'
+    else:
+        fn = split_path[-1]
+
+    return fn
+
 def build_GET_request(url: str, host_url: str):
     ''' Helper method to build HTTP GET request using the argument url '''
     message_lines = [
