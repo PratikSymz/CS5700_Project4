@@ -435,6 +435,11 @@ def set_fin_ack_bits(tcp_flags: dict):
 
     return tcp_flags
 
+def set_fin_bits(tcp_flags: dict):
+    tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
+    tcp_flags["FLAG_TCP_FIN"] = 1
+
+    return tcp_flags
 
 if __name__ == "__main__":
     # ! Pass this as input to the functions or resolve the scoping problem

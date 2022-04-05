@@ -1,4 +1,4 @@
-import socket, sys, utils, os
+import socket, sys, utils, os, time
 
 
 class RawSocket:
@@ -6,8 +6,9 @@ class RawSocket:
     sender_socket, receiver_socket = socket.socket(), socket.socket()
 
     ''' Set of contstant fields for TCP header '''
-    IP_TIMEOUT = 3 * 60     # IP Timeout: 3 minutes
-    BUFFER_SIZE = pow(2, 16) - 1    # MAX IP packet length
+    TCP_TIMEOUT = 60     # TCP Retransmission Timeout: 1 minute
+    BUFFER_SIZE = pow(2, 16) - 1    # MAX packet length
+
     # BIT_SYN_ACK = 0x12      # Hex value of 010010 where SYN/ACK are both 1
     # BIT_ACK = 0x10      # Hex value of 010000 where ACK is 1
     # BIT_FIN_ACK = 0x11      # Hex value of 010001 where ACK and FIN are both 1 for closing connection
@@ -27,7 +28,7 @@ class RawSocket:
             src_addr = utils.get_localhost_addr()
             src_port = utils.get_localhost_port(receiver_socket, src_addr)
             receiver_socket.bind((src_addr, src_port))
-            receiver_socket.settimeout(RawSocket.IP_TIMEOUT)
+            # receiver_socket.settimeout(60)
 
         except socket.error as socket_error:
             # Can't connect with socket
@@ -50,7 +51,6 @@ class RawSocket:
         ip_headers, tcp_headers, payload = {}, {}, b''
         
         while True:
-            # TODO: Implement Timeout
             # Receive Network layer packet from the server
             try:
                 net_layer_packet = RawSocket.receiver_socket.recv(RawSocket.BUFFER_SIZE)
@@ -75,9 +75,9 @@ class RawSocket:
                 print("Invalid TCP packet: " + str(socket_error))
                 sys.exit("Invalid data received! Timeout " + "\n")
 
-            # Parse TCP headers (flags) for FIN/ACK message: FIN/ACK<1, 1>
+                # Parse TCP headers (flags) for FIN/ACK message: FIN/ACK<1, 1>
             if (tcp_headers["flags"] & flag_type == flag_type):
-                # Once server FIN/ACK received, break from loop
+               # Once server FIN/ACK received, break from loop
                 break
 
         return ip_headers, tcp_headers, payload
@@ -93,6 +93,9 @@ class RawSocket:
 
         # Receive incoming packet information
         ip_headers, tcp_headers, payload = RawSocket.receive_packet(FLAG_SYN)
+
+        # Update the Client's advertized window
+        utils.TCP_ADV_WINDOW = tcp_headers["adv_window"]
 
         # Send final ACK and finish handshake
         # At end of SYN/ACK <1S, 2C>
@@ -127,6 +130,9 @@ class RawSocket:
 
         # Receive incoming packet information
         ip_headers, tcp_headers, payload = RawSocket.receive_packet(FLAG_FIN_ACK)
+        
+        # Update the Client's advertized window
+        utils.TCP_ADV_WINDOW = tcp_headers["adv_window"]
 
         # utils.TCP_ACK_NUM = tcp_headers["ack_num"]
         if (tcp_headers["seq_num"] == tcp_headers["ack_num"] - 1):
@@ -145,7 +151,6 @@ class RawSocket:
         else:
             print("Unable to close connection!!!" + "\n")
 
-    # TODO complete
     def run(self):
         # Drop outgoing TCP RST packets
         os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP")
@@ -156,17 +161,80 @@ class RawSocket:
         self.init_tcp_handshake()
 
         # Send get request for webpage
-        get_req = utils.build_GET_request(utils.get_destination_url(arg_url))
-        self.send_packet(utils.IP_DEST_ADDRESS, utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, utils.TCP_FLAGS, utils.TCP_ADV_WINDOW, get_req)
+        url, host_url = utils.get_destination_url(arg_url)
+        request_payload = utils.build_GET_request(url, host_url)
+        FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(utils.FLAGS_TCP))
+        FLAG_FIN = utils.concat_tcp_flags(utils.set_fin_bits(utils.FLAGS_TCP))
+        
+        self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, request_payload) # utils.IP_DEST_ADDRESS, 
 
-        # do I need to increase seq num?
+        # Payload sent, update SEQ_NUM
+        utils.TCP_SEQ_NUM += len(request_payload)
+
+        flag_finished = False   # Bool flag to determine whether packets are finished receiving or not
+        while not flag_finished:
+            # TODO: Start receiving info
+            # Receive incoming packet information
+            ip_headers, tcp_headers, payload = {}, {}, b''
+            while True:
+                # Receive Network layer packet from the server
+                try:
+                    net_layer_packet = RawSocket.receiver_socket.recv(RawSocket.BUFFER_SIZE)
+
+                except socket.timeout as socket_timeout:
+                    print("Socket timeout: " + str(socket_timeout))
+                    sys.exit("No data received! Timeout " + "\n")
+
+                # Parse Network layer packet
+                try:
+                    ip_headers, tport_layer_packet = utils.unpack_ip_fields(net_layer_packet)
+
+                except socket.error as socket_error:
+                    print("Invalid IP packet: " + str(socket_error))
+                    sys.exit("Invalid data received! Timeout " + "\n")
+
+                # Parse Transport layer packet
+                try:
+                    tcp_headers, payload = utils.unpack_tcp_fields(tport_layer_packet)
+
+                except socket.error as socket_error:
+                    print("Invalid TCP packet: " + str(socket_error))
+                    sys.exit("Invalid data received! Timeout " + "\n")
+
+                # Parse TCP headers (flags) for FIN message
+                # TODO: Recheck logic
+                if (tcp_headers["flags"] & FLAG_FIN == FLAG_FIN):
+                    # Once server FIN received, break from loop
+                    flag_finished = True
+                    break
+                
+                # Normal packet transmission
+                # 1. Compare the Sequence and Acknowledgement no.s we're maintaining with the transmitted one
+                if (utils.TCP_SEQ_NUM == tcp_headers["seq_num"] and utils.TCP_ACK_NUM == tcp_headers["ack_num"]):
+                    # 2. Check if there is any payload (HTTP Header) in the packet
+                    if (len(payload) > 0):
+                        # TODO: Extract HTTP header info, parse and save into file
+                        pass
+
+                    # 3. Send ACK for the packet received and update ACK number of client
+                    utils.TCP_ACK_NUM += len(payload)
+                    # Update the Client's advertized window
+                    utils.TCP_ADV_WINDOW = tcp_headers["adv_window"]
+
+                    self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
+
+                else:
+                    # 4. Mismatch in Client side SEQ and ACK nums: 
+                    # Received out of order packet due to TCP packet drop - retransmit ACK
+                    self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
+
 
         # Get file path name
         file_path = utils.get_filepath(arg_url)
-        ip_headers, tcp_headers, response_data = self.receive_packet(file_path) # ? What param do I pass in here?
+        ip_headers, tcp_headers, response_data = self.receive_packet(b'') # ? What param do I pass in here?
         # Get response content
         # TODO check if content is correct
-        content = utils.parse_response(response_data)
+        content = utils.parse_response(response_data.decode(utils.FORMAT))
 
         # Write content to file
         filename = utils.get_filename(arg_url)
