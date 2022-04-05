@@ -110,7 +110,6 @@ PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
 IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
 #IP_HEADER_SEGMENT_FORMAT = '!4s4s'
 
-# TODO: Start with IP Header information (P Data packing)
 ''' IP and TCP header field keys '''
 KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
 KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_len', 'frag_offset']
@@ -123,9 +122,9 @@ def compute_header_checksum(header_data):
     # Loop taking two characters at a time
     for i in range(0, len(header_data), 2):
         if (i == len(header_data) - 1):
-            binary_checksum += ord(header_data[i])
+            binary_checksum += header_data[i]
         else:
-            binary_checksum += ord(header_data[i]) + (ord(header_data[i + 1]) << 8)
+            binary_checksum += header_data[i] + (header_data[i + 1] << 8)
 
     # Compute 1's complement
     while (binary_checksum >> 16 != 0):
@@ -133,7 +132,7 @@ def compute_header_checksum(header_data):
     
     return ~binary_checksum & 0xffff
 
-def validate_tcp_header_checksum(packet_checksum, tcp_fields: dict, tport_layer_packet, tcp_options, payload: str):
+def validate_tcp_header_checksum(packet_checksum: bytes, tcp_fields: dict, tport_layer_packet: bytes, tcp_options: bytes, payload: bytes):
     ''' Helper method to verify TCP checksum '''
     tcp_header = pack(
         TCP_HEADER_FORMAT, 
@@ -148,7 +147,7 @@ def validate_tcp_header_checksum(packet_checksum, tcp_fields: dict, tport_layer_
 
     # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
     # ? Do I need to create TCP headers again to compute checksum
-    return (packet_checksum == compute_header_checksum(tcp_header + payload.encode(FORMAT) + pseudo_ip_header))
+    return (packet_checksum == compute_header_checksum(pseudo_ip_header + tcp_header + payload))
 
 def validate_ip_header_checksum(packet_checksum, ip_headers: dict):
     ''' Helper method to verify IP checksum '''
@@ -214,20 +213,20 @@ def unpack_tcp_fields(tport_layer_packet):
         2. return: a key-value table of the fields of the TCP header and the payload
     '''
     # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
-    tcp_header_fields = unpack(TCP_HEADER_FORMAT, tport_layer_packet[: 20])
+    tcp_header_fields = unpack(TCP_HEADER_FORMAT, tport_layer_packet[ :20])
     tcp_headers = dict(zip(KEYS_TCP_FIELDS, tcp_header_fields))
 
     # Validate presence of any TCP options
     # 1. Shift offset 4 bits from data offset field and get no. of words value
-    options_offset = tcp_headers["data_offset"] >> 4
-    tcp_options = None
+    data_offset = tcp_headers["data_offset"] >> 4
+    tcp_options = b''
 
     # If this offset is = 5 words means that Options and Padding fields are empty, so..
-    if (options_offset > 5):    # There are options [0...40B max]
+    if (data_offset > 5):    # There are options [0...40B max]
         # ? Extract MSS - WTF should I do with it?
-        tcp_options = tport_layer_packet[20 : 4 * options_offset]
+        tcp_options = tport_layer_packet[20 : 4 * data_offset]
 
-    payload = tport_layer_packet[4 * options_offset :]
+    payload = tport_layer_packet[4 * data_offset :]
 
     # Validate: if packet is headed towards the correct destination port
     if (tcp_headers["dest_port"] != TCP_SOURCE_PORT):
@@ -275,7 +274,7 @@ def unpack_ip_fields(net_layer_packet):
 
     ip_headers["version"] = (ip_headers["vhl"] >> 4)
     ip_headers["header_len"] = (ip_headers["vhl"] & 0x0f)
-    ip_headers["frag_offset"] = (ip_headers["frag_offset"] & 0x1fff)
+    ip_headers["frag_offset"] = (ip_headers["flags"] & 0x1fff)
 
     options_offset = ip_headers["header_len"] >> 4
     ip_options = None
@@ -314,7 +313,7 @@ def get_localhost_addr():
     return localhost[0]
 
 def get_localhost_port(receiver_socket, receiver_ip):
-    ''' Helper method to determine the available localhost Port no. '''
+    ''' Helper method to determine the available localhost port no. '''
     random_port = 0
     while True:
         random_port = random.randint(49152, 65535)
@@ -438,6 +437,7 @@ def set_fin_ack_bits(tcp_flags: dict):
 
 
 if __name__ == "__main__":
+    # ! Pass this as input to the functions or resolve the scoping problem
     IP_SRC_ADDRESS = socket.inet_aton(get_localhost_addr()[0])
     IP_DEST_ADDRESS = socket.inet_aton(
         socket.gethostbyname(get_destination_url('http://david.choffnes.com/classes/cs4700sp22/project4.php')[1])

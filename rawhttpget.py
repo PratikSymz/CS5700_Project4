@@ -50,6 +50,7 @@ class RawSocket:
         ip_headers, tcp_headers, payload = {}, {}, b''
         
         while True:
+            # TODO: Implement Timeout
             # Receive Network layer packet from the server
             try:
                 net_layer_packet = RawSocket.receiver_socket.recv(RawSocket.BUFFER_SIZE)
@@ -98,15 +99,17 @@ class RawSocket:
         if (tcp_headers["seq_num"] == tcp_headers["ack_num"] - 1):
             # Complete handshake procedure
             # ACK received for Client side, update SEQ_NUM and send ACK to Server
-            utils.TCP_SEQ_NUM += 1
+            # utils.TCP_SEQ_NUM += 1
+            utils.TCP_SEQ_NUM = tcp_headers["ack_num"]
 
             # Update ACK for Server side
-            utils.TCP_ACK_NUM = tcp_headers["seq_num"] + 1
+            utils.TCP_ACK_NUM = tcp_headers["seq_num"]
 
             # Set TCP flags for final ACK message (for Server)
             FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(utils.FLAGS_TCP))
 
             # Send final handshake message
+            utils.TCP_ACK_NUM = utils.TCP_ACK_NUM + 1
             RawSocket.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
 
         else:
@@ -139,6 +142,8 @@ class RawSocket:
 
             # Send the final ACK to the server to terminate the connection
             RawSocket.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
+        else:
+            print("Unable to close connection!!!" + "\n")
 
     # TODO complete
     def run(self):
