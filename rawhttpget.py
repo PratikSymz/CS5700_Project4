@@ -1,4 +1,4 @@
-import socket, sys, utils
+import socket, sys, utils, os
 
 
 class RawSocket:
@@ -142,9 +142,38 @@ class RawSocket:
 
             # Send the final ACK to the server to terminate the connection
             RawSocket.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
-
         else:
             print("Unable to close connection!!!" + "\n")
+
+    # TODO complete
+    def run(self):
+        # Drop outgoing TCP RST packets
+        os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP")
+
+        arg_url = 'http://david.choffnes.com/classes/cs4700sp22/project4.php'   # TODO change to use system arg
+
+        # Start TCP handshake
+        self.init_tcp_handshake()
+
+        # Send get request for webpage
+        get_req = utils.build_GET_request(utils.get_destination_url(arg_url))
+        self.send_packet(utils.IP_DEST_ADDRESS, utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, utils.TCP_FLAGS, utils.TCP_ADV_WINDOW, get_req)
+
+        # do I need to increase seq num?
+
+        # Get file path name
+        file_path = utils.get_filepath(arg_url)
+        ip_headers, tcp_headers, response_data = self.receive_packet(file_path) # ? What param do I pass in here?
+        # Get response content
+        # TODO check if content is correct
+        content = utils.parse_response(response_data)
+
+        # Write content to file
+        filename = utils.get_filename(arg_url)
+        utils.write_to_file(arg_url, content)
+
+        # Close socket connections
+        self.close_connection()
 
 if __name__ == "__main__":
     RawSocket()

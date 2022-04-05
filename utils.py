@@ -343,6 +343,36 @@ def get_destination_url(arg_url: str):
 
     return url, host_url
 
+def get_filepath(arg_url: str):
+    ''' Helper method to get the file path name from the url '''
+    fp, url = ''
+
+    if (arg_url.startswith('https://')):
+        raise Exception('Invalid URL')
+
+    url = arg_url[7: ]
+    if ('/' in url):
+        ptr = url.find('/')
+        fp = url[ptr: ]
+
+    return fp
+
+def get_filename(url_path: str):
+    '''
+    Helper method to get the filename from the given path
+        param: url_path - either a full url or the file path of the webpage
+        return: filename string to be used to write content into
+    '''
+    fn = ''
+    split_path = url_path.split('/')
+
+    if (split_path[-1] == '' or split_path[-1].count('.') > 1):
+        fn = 'index.html'
+    else:
+        fn = split_path[-1]
+
+    return fn
+
 def build_GET_request(url: str, host_url: str):
     ''' Helper method to build HTTP GET request using the argument url '''
     message_lines = [
@@ -351,6 +381,30 @@ def build_GET_request(url: str, host_url: str):
     ]
     
     return '\r\n'.join(message_lines) + '\r\n\r\n'
+
+# ? do we only need the html body or headers as well
+def parse_response(data: str):
+    '''
+    Helper method that parses the response data from the get request and returns the content of the response
+        param: data - response data received from the get request
+        return: response body containing webpage content in byte format
+    '''
+    response = data.split("\r\n\r\n")
+    # raw_headers = response[0]
+    raw_body = response[1] if len(response) == 2 else ''
+
+    return raw_body
+
+# TODO check if correct content written
+def write_to_file(filename: str, content: str):
+    '''
+    Helper method to write and save content into a file
+        param: filename - name of the file to write to; if file does not exist, create it
+               content - content to be written into the file
+    '''
+    f = open(filename, 'w+') # not sure if it needs to be set for binary just yet - left as default for now
+    f.write(content)
+    f.close()
 
 def concat_tcp_flags(tcp_flags: dict):
     return tcp_flags["FLAG_TCP_FIN"] + (tcp_flags["FLAG_TCP_SYN"] << 1) + (tcp_flags["FLAG_TCP_RST"] << 2) + (tcp_flags["FLAG_TCP_PSH"] << 3) + (tcp_flags["FLAG_TCP_ACK"] << 4) + (tcp_flags["FLAG_TCP_URG"] << 5)
