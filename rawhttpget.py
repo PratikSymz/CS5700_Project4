@@ -145,7 +145,7 @@ class RawSocket:
         # Drop outgoing TCP RST packets
         os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP")
 
-        arg_url = 'http://david.choffnes.com/classes/cs4700sp22/project4.php'
+        arg_url = 'http://david.choffnes.com/classes/cs4700sp22/project4.php'   # TODO change to use system arg
 
         # Start TCP handshake
         self.init_tcp_handshake()
@@ -158,7 +158,14 @@ class RawSocket:
 
         # Get file path name
         file_path = utils.get_filepath(arg_url)
-        ip_headers, tcp_headers, response_body = self.receive_packet(file_path)
+        ip_headers, tcp_headers, response_data = self.receive_packet(file_path) # ? What param do I pass in here?
+        # Get response content
+        # TODO check if content is correct
+        content = utils.parse_response(response_data)
+
+        # Write content to file
+        filename = utils.get_filename(arg_url)
+        utils.write_to_file(arg_url, content)
 
         # Close socket connections
         self.close_connection()
