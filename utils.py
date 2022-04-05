@@ -383,6 +383,30 @@ def build_GET_request(url: str, host_url: str):
     
     return '\r\n'.join(message_lines) + '\r\n\r\n'
 
+# ? do we only need the html body or headers as well
+def parse_response(data: str):
+    '''
+    Helper method that parses the response data from the get request and returns the content of the response
+        param: data - response data received from the get request
+        return: response body containing webpage content in byte format
+    '''
+    response = data.split("\r\n\r\n")
+    # raw_headers = response[0]
+    raw_body = response[1] if len(response) == 2 else ''
+
+    return raw_body
+
+# TODO check if correct content written
+def write_to_file(filename: str, content: str):
+    '''
+    Helper method to write and save content into a file
+        param: filename - name of the file to write to; if file does not exist, create it
+               content - content to be written into the file
+    '''
+    f = open(filename, 'w+') # not sure if it needs to be set for binary just yet - left as default for now
+    f.write(content)
+    f.close()
+
 def concat_tcp_flags(tcp_flags: dict):
     return tcp_flags["FLAG_TCP_FIN"] + (tcp_flags["FLAG_TCP_SYN"] << 1) + (tcp_flags["FLAG_TCP_RST"] << 2) + (tcp_flags["FLAG_TCP_PSH"] << 3) + (tcp_flags["FLAG_TCP_ACK"] << 4) + (tcp_flags["FLAG_TCP_URG"] << 5)
 
