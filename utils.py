@@ -401,10 +401,18 @@ def parse_response(data: str):
         return: response body containing webpage content in byte format
     '''
     response = data.split("\r\n\r\n")
-    # raw_headers = response[0]
+    headers = {}
+    raw_headers = response[0].split("\r\n")
     raw_body = response[1] if len(response) == 2 else ''
 
-    return raw_body
+    for header in raw_headers[1:]:
+        item = header.split(": ")
+        if (item[0] in headers.keys()):
+            headers[item[0]] = headers.get(item[0]) + "\n" + item[1]
+        else:
+            headers[item[0]] = item[1]
+
+    return headers, raw_body
 
 # TODO check if correct content written
 def write_to_file(filename: str, content: str):
