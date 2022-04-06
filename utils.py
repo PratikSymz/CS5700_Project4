@@ -302,12 +302,12 @@ def unpack_ip_fields(net_layer_packet):
     return ip_headers, tport_layer_packet
 
 # TODO: Implement Congestion control algo
-def set_congestion_control(cwnd: int, ssthresh: int, slow_start: bool):
+def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
     cwnd_limit = 1000
     if slow_start:
         cwnd = 1
     else:
-        # TODO: Determine new MSS and include it in the below comparison
+        # TODO: Determine new MSS and include MMS in comparison
         cwnd = min(cwnd * 2, cwnd_limit)
 
     return cwnd
