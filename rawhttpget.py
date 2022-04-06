@@ -4,7 +4,7 @@ import socket, sys, utils, os, time
 class RawSocket:
     def __init__(self):
         # Sender and receiver sockets
-        self.sender_socket, self.receiver_socket = socket.socket(), socket.socket()
+        # self.sender_socket, self.receiver_socket = socket.socket(), socket.socket()
 
         ''' Set of contstant fields for TCP header '''
         self.TIMEOUT = 60     # TCP Retransmission Timeout: 1 minute
@@ -25,16 +25,16 @@ class RawSocket:
         try:
             # Raw socket setup
             # Setup Sender side socket (To Server)
-            sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
             dest_addr, dest_port = socket.gethostbyname(utils.get_destination_url(self.SERVER_URL)[1]), utils.TCP_DEST_PORT
-            sender_socket.connect((dest_addr, dest_port))
+            self.sender_socket.connect((dest_addr, dest_port))
 
             # Setup Receiver side socket (To Localhost)
-            receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
             src_addr = utils.get_localhost_addr()
-            src_port = utils.get_localhost_port(receiver_socket, src_addr)
-            receiver_socket.bind((src_addr, src_port))
-            receiver_socket.settimeout(self.TIMEOUT)
+            src_port = utils.get_localhost_port(self.receiver_socket, src_addr)
+            self.receiver_socket.bind((src_addr, src_port))
+            self.receiver_socket.settimeout(self.TIMEOUT)
 
         except socket.error as socket_error:
             # Can't connect with socket
