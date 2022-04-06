@@ -4,6 +4,7 @@ import socket, sys, utils, os, time
 
 class RawSocket:
     def __init__(self):
+        print('initing')
         # Command line args
         # self.arg_url = sys.argv[0]    # ? do we need this here or only in run()
         # Sender and receiver sockets
