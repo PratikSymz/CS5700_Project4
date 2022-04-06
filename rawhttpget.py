@@ -1,8 +1,11 @@
+import argparse
 import socket, sys, utils, os, time
 
 
 class RawSocket:
     def __init__(self):
+        # Command line args
+        # self.arg_url = sys.argv[0]    # ? do we need this here or only in run()
         # Sender and receiver sockets
         self.sender_socket, self.receiver_socket = socket.socket(), socket.socket()
 
@@ -189,7 +192,7 @@ class RawSocket:
         # Drop outgoing TCP RST packets
         os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP")
 
-        arg_url = 'http://david.choffnes.com/classes/cs4700sp22/project4.php'   # TODO change to use system arg
+        arg_url = sys.argv[0]
 
         # Start TCP handshake
         self.init_tcp_handshake()
@@ -297,4 +300,7 @@ class RawSocket:
         self.close_connection()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("URL", type=str, action="store", help="URL")
+    args = parser.parse_args()
     RawSocket()
