@@ -28,7 +28,7 @@ class RawSocket:
         try:
             # Raw socket setup
             # Setup Sender side socket (To Server)
-            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW, socket.htons(0x0806))
             print('created sender\n')
             dest_addr, dest_port = socket.gethostbyname(utils.get_destination_url(self.SERVER_URL)[1]), utils.TCP_DEST_PORT
             print('addr:', dest_addr, 'port:', dest_port)
@@ -36,7 +36,7 @@ class RawSocket:
             print('sender socket connected\n')
 
             # Setup Receiver side socket (To Localhost)
-            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP, socket.htons(0x0806))
             print('created receiver\n')
             src_addr = utils.get_localhost_addr()
             src_port = utils.get_localhost_port(self.receiver_socket, src_addr)
