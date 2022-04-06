@@ -302,12 +302,12 @@ def unpack_ip_fields(net_layer_packet):
     return ip_headers, tport_layer_packet
 
 # TODO: Implement Congestion control algo
-def set_congestion_control(cwnd: int, ssthresh: int, slow_start: bool):
+def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
     cwnd_limit = 1000
     if slow_start:
         cwnd = 1
     else:
-        # TODO: Determine new MSS and include it in the below comparison
+        # TODO: Determine new MSS and include MMS in comparison
         cwnd = min(cwnd * 2, cwnd_limit)
 
     return cwnd
@@ -405,10 +405,10 @@ def parse_response(data: str):
     raw_headers = response[0].split("\r\n")
     raw_body = response[1] if len(response) == 2 else ''
 
-    for header in raw_headers[1:]:
+    for header in raw_headers[1: ]:
         item = header.split(": ")
-        if (item[0] in headers.keys()):
-            headers[item[0]] = headers.get(item[0]) + "\n" + item[1]
+        if (item[0] in headers):
+            headers[item[0]] = f"{headers.get(item[0])}\n{item[1]}" #headers[item[0]] = headers.get(item[0]) + "\n" + item[1]
         else:
             headers[item[0]] = item[1]
 

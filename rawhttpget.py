@@ -1,4 +1,3 @@
-import argparse
 import socket, sys, utils, os, time
 
 
@@ -8,7 +7,7 @@ class RawSocket:
         # Command line args
         # self.arg_url = sys.argv[0]    # ? do we need this here or only in run()
         # Sender and receiver sockets
-        self.sender_socket, self.receiver_socket = socket.socket(), socket.socket()
+        # self.sender_socket, self.receiver_socket = socket.socket(), socket.socket()
 
         ''' Set of contstant fields for TCP header '''
         self.TIMEOUT = 60     # TCP Retransmission Timeout: 1 minute
@@ -21,25 +20,30 @@ class RawSocket:
         self.SERVER_URL = ''
         self.CWND = 1
 
+        self.FLAG_SYN = utils.concat_tcp_flags(utils.set_syn_bit(utils.FLAGS_TCP))
+        self.FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(utils.FLAGS_TCP))
+        self.FLAG_FIN = utils.concat_tcp_flags(utils.set_fin_bits(utils.FLAGS_TCP))
+        self.FLAG_FIN_ACK = utils.concat_tcp_flags(utils.set_fin_ack_bits(utils.FLAGS_TCP))
+
         try:
             # Raw socket setup
             # Setup Sender side socket (To Server)
-            sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
             print('created sender\n')
             dest_addr, dest_port = socket.gethostbyname(utils.get_destination_url(self.SERVER_URL)[1]), utils.TCP_DEST_PORT
             print('addr:', dest_addr, 'port:', dest_port)
-            sender_socket.connect((dest_addr, dest_port))
+            self.sender_socket.connect((dest_addr, dest_port))
             print('sender socket connected\n')
 
             # Setup Receiver side socket (To Localhost)
-            receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
             print('created receiver\n')
             src_addr = utils.get_localhost_addr()
-            src_port = utils.get_localhost_port(receiver_socket, src_addr)
+            src_port = utils.get_localhost_port(self.receiver_socket, src_addr)
             print('addr:', src_addr, 'port:', src_port)
-            receiver_socket.bind((src_addr, src_port))
+            self.receiver_socket.bind((src_addr, src_port))
             print('bind receiver socket\n')
-            receiver_socket.settimeout(self.TIMEOUT)
+            self.receiver_socket.settimeout(self.TIMEOUT)
 
         except socket.error as socket_error:
             # Can't connect with socket
@@ -82,27 +86,20 @@ class RawSocket:
             # Send packet from the Network layer to the server
             self.sender_socket.sendall(net_layer_packet)
 
-
-    def receive_packet(self, flag_type: bytes):
+    def receive_ack_packet(self, flags: int):
         ''' Helper method to receive packets from the project server to the Network layer '''
         ip_headers, tcp_headers, payload = {}, {}, b''
-        curr_time = time.perf_counter()
         
         while True:
-            # TODO: Add timeout check
-            if (time.perf_counter() - curr_time > self.TIMEOUT):
-                pass
-                # ? Either return or closeConnection(). Pretty sure have to do retransmission
             # Receive Network layer packet from the server
             try:
                 net_layer_packet = self.receiver_socket.recv(self.BUFFER_SIZE)
 
-            except socket.timeout as socket_timeout:
+            except socket.timeout:
                 # Socket timeout, reset CWND and enter slow start mode to retransmit
                 self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS, True)
-                # ? Restart sending??
-                # print("Socket timeout: " + str(socket_timeout))
-                sys.exit("No data received! Timeout " + "\n")
+                self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, flags, utils.TCP_ADV_WINDOW, '')
+                continue
 
             # Parse Network layer packet
             try:
@@ -120,23 +117,21 @@ class RawSocket:
                 print("Invalid TCP packet: " + str(socket_error))
                 sys.exit("Invalid data received! Timeout " + "\n")
 
-                # Parse TCP headers (flags) for FIN/ACK message: FIN/ACK<1, 1>
-            if (tcp_headers["flags"] & flag_type == flag_type):
-               # Once server FIN/ACK received, break from loop
+            # Check for ACK flag in Handshake and Close connection processes
+            if (tcp_headers["flags"] & self.FLAG_ACK > 0):
+               # Once server ACK received, break from loop
                 break
 
         return ip_headers, tcp_headers, payload
 
     def init_tcp_handshake(self):
         ''' Helper method to initiate the TCP three-way handshake: SYN, SYN/ACK, ACK '''
-        # Set TCP flags - SYN = 1 (by default), others all 0
-        FLAG_SYN = utils.concat_tcp_flags(utils.set_syn_bit(utils.FLAGS_TCP))
 
         # 1. Send packet from Network layer with TCP SYN = 1 and payload as Null: SYN<1, 0> bit 1
-        self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_SYN, utils.TCP_ADV_WINDOW, '')
+        self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_SYN, utils.TCP_ADV_WINDOW, '')
         
         # Receive incoming packet information
-        ip_headers, tcp_headers, payload = self.receive_packet(FLAG_SYN)
+        ip_headers, tcp_headers, payload = self.receive_ack_packet(self.FLAG_SYN)
 
         # Update the Client's advertized window
         utils.TCP_ADV_WINDOW = tcp_headers["adv_window"]
@@ -161,45 +156,26 @@ class RawSocket:
 
         else:
             # TODO: Close connection from client side - Server side complete
+            self.close_connection('CLIENT')
             sys.exit("3-Way Handshake failed!!!" + "\n")
 
-    def close_connection(self):
+    def close_connection(self, source: str):
         ''' Helper method to close connection with the server based on TCP flags '''
-        ''' https://medium.com/@cspsprotocols247/tcp-connenction-termination-what-is-fin-fin-ack-rst-and-rst-ack-1a5032d346fb '''
-        # Set TCP flags - FIN/ACK<1, 1>
-        FLAG_FIN_ACK = utils.concat_tcp_flags(utils.set_fin_ack_bits(utils.FLAGS_TCP))
-
-        # 1. Send packet from Network layer with TCP FIN = 1 and ACK = 1 for payload: FIN/ACK<1, 1>
-        self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_FIN_ACK, utils.TCP_ADV_WINDOW, '')
-
-        # Receive incoming packet information
-        ip_headers, tcp_headers, payload = self.receive_packet(FLAG_FIN_ACK)
+        if (source == 'SERVER'):
+            print('Server-side closed!')
+            self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_FIN_ACK, utils.TCP_ADV_WINDOW, '')
         
-        # Update the Client's advertized window
-        utils.TCP_ADV_WINDOW = tcp_headers["adv_window"]
-
-        # utils.TCP_ACK_NUM = tcp_headers["ack_num"]
-        if (tcp_headers["seq_num"] == tcp_headers["ack_num"] - 1):
-            # Complete connection teardown
-            # ACK received for Client side, update SEQ_NUM
-            utils.TCP_SEQ_NUM = tcp_headers["seq_num"]
-
-            # Update ACK for Server side
-            utils.TCP_ACK_NUM = tcp_headers["seq_num"] + 1
-            
-            # Send final ACK to Server to terminate connection
-            FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(utils.FLAGS_TCP))
-
-            # Send the final ACK to the server to terminate the connection
-            self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
-        else:
-            print("Unable to close connection!!!" + "\n")
+        if (source == 'CLIENT'):
+            print('Client-side shutdown!')
+            self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_FIN_ACK, utils.TCP_ADV_WINDOW, '')
+            self.receive_ack_packet(self.FLAG_FIN_ACK)
+            self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_ACK, utils.TCP_ADV_WINDOW, '')
 
     def run(self):
         # Drop outgoing TCP RST packets
         os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP")
 
-        arg_url = sys.argv[0]
+        arg_url = 'http://david.choffnes.com/classes/cs4700sp22/project4.php'   # TODO change to use system arg
 
         # Start TCP handshake
         self.init_tcp_handshake()
@@ -207,11 +183,9 @@ class RawSocket:
         # Send get request for webpage
         url, host_url = utils.get_destination_url(arg_url)
         request_payload = utils.build_GET_request(url, host_url)
-        FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(utils.FLAGS_TCP))
-        FLAG_FIN = utils.concat_tcp_flags(utils.set_fin_bits(utils.FLAGS_TCP))
-        FLAG_FIN_ACK = utils.concat_tcp_flags(utils.set_fin_ack_bits(utils.FLAGS_TCP))
         
-        self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, request_payload) # utils.IP_DEST_ADDRESS, 
+        self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_ACK, utils.TCP_ADV_WINDOW, request_payload)
+        
 
         # Payload sent, update SEQ_NUM
         utils.TCP_SEQ_NUM += len(request_payload)
@@ -219,47 +193,24 @@ class RawSocket:
         # Maintain a TCP Segment dict to keep track of out of order packets
         tcp_segments = {}
 
-        # TODO: Start receiving info
         # Receive incoming packet information
         ip_headers, tcp_headers, payload = {}, {}, b''
         while True:
-            # Receive Network layer packet from the server
-            try:
-                net_layer_packet = self.receiver_socket.recv(self.BUFFER_SIZE)
-
-            except socket.timeout as socket_timeout:
-                # TODO: Exit system
-                print("Socket timeout: " + str(socket_timeout))
-                sys.exit("No data received! Timeout " + "\n")
-
-            # Parse Network layer packet
-            try:
-                ip_headers, tport_layer_packet = utils.unpack_ip_fields(net_layer_packet)
-
-            except socket.error as socket_error:
-                print("Invalid IP packet: " + str(socket_error))
-                sys.exit("Invalid data received! Timeout " + "\n")
-
-            # Parse Transport layer packet
-            try:
-                tcp_headers, payload = utils.unpack_tcp_fields(tport_layer_packet)
-
-            except socket.error as socket_error:
-                print("Invalid TCP packet: " + str(socket_error))
-                sys.exit("Invalid data received! Timeout " + "\n")
+            # Receive Network layer packet
+            ip_headers, tcp_headers, payload = self.receive_ack_packet(self.FLAG_ACK)
 
             # Parse TCP headers (flags) for FIN message
             # TODO: Recheck logic for SERVER and CLIENT FIN separately
-            if (tcp_headers["flags"] & FLAG_FIN == FLAG_FIN):
+            # FIN flag received from the Server - close connection and send FIN/ACK to the server
+            if (tcp_headers["flags"] & self.FLAG_FIN > 0):
                 # Once server FIN received, break from loop
                 utils.TCP_SEQ_NUM = tcp_headers["ack_num"]
                 utils.TCP_ACK_NUM = tcp_headers["seq_num"] + 1  # Do +1 to ACK the FIN flag
-                # TODO: Send FIN_ACK to server since it closed the connection
-                self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_FIN_ACK, utils.TCP_ADV_WINDOW, '')
+                self.close_connection('SERVER')
                 break
             
-            # Normal packet transmission
-            if (tcp_headers["flags"] & FLAG_ACK > 0 and tcp_headers["seq_num"] not in tcp_segments and len(payload) > 0):
+            # Packet transmitted from the server - handle all cases and update SEQ and ACK nums
+            if (tcp_headers["flags"] & self.FLAG_ACK > 0 and tcp_headers["seq_num"] not in tcp_segments and len(payload) > 0):
                 # Compare the Seq no. we're maintaining with the transmitted Ack no.
                 if (utils.TCP_SEQ_NUM == tcp_headers["ack_num"]):    # and utils.TCP_ACK_NUM == tcp_headers["ack_num"]
                     # Add payload for the specific SEQ_NUM
@@ -272,15 +223,15 @@ class RawSocket:
                     utils.TCP_ADV_WINDOW = tcp_headers["adv_window"]
 
                     # Update congestion window
-                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS, False)
+                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS)
 
                     # Send ACK for the packet received and update ACK number of client
-                    self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
+                    self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_ACK, utils.TCP_ADV_WINDOW, '')
 
                 else:
                     # Packet dropped - send ACK again
                     self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS, True)
-                    self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
+                    self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_ACK, utils.TCP_ADV_WINDOW, '')
 
         # Sort the TCP segments based on SEQ_NUM and concatenate the payload
         tcp_segments_inorder = sorted(tcp_segments.items())
@@ -304,10 +255,7 @@ class RawSocket:
         utils.write_to_file(arg_url, body)
 
         # Close socket connections
-        self.close_connection()
+        self.close_connection('CLIENT')
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("URL", type=str, action="store", help="URL")
-    args = parser.parse_args()
     RawSocket()
