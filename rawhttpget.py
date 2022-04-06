@@ -3,6 +3,9 @@ import socket, sys, utils, os, time
 
 class RawSocket:
     def __init__(self):
+        print('initing')
+        # Command line args
+        # self.arg_url = sys.argv[0]    # ? do we need this here or only in run()
         # Sender and receiver sockets
         # self.sender_socket, self.receiver_socket = socket.socket(), socket.socket()
 
@@ -21,6 +24,11 @@ class RawSocket:
         self.FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(utils.FLAGS_TCP))
         self.FLAG_FIN = utils.concat_tcp_flags(utils.set_fin_bits(utils.FLAGS_TCP))
         self.FLAG_FIN_ACK = utils.concat_tcp_flags(utils.set_fin_ack_bits(utils.FLAGS_TCP))
+
+        utils.IP_SRC_ADDRESS = socket.inet_aton(utils.get_localhost_addr()[0])
+        utils.IP_DEST_ADDRESS = socket.inet_aton(
+        socket.gethostbyname(utils.get_destination_url('http://david.choffnes.com/classes/cs4700sp22/project4.php')[1])
+    )
 
         try:
             # Raw socket setup
@@ -166,7 +174,7 @@ class RawSocket:
         # Drop outgoing TCP RST packets
         os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP")
 
-        arg_url = 'http://david.choffnes.com/classes/cs4700sp22/project4.php'   # TODO change to use system arg
+        arg_url = sys.argv[1]
 
         # Start TCP handshake
         self.init_tcp_handshake()
@@ -249,4 +257,8 @@ class RawSocket:
         self.close_connection('CLIENT')
 
 if __name__ == "__main__":
-    RawSocket()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("URL", type=str, action="store", help="URL")
+    args = parser.parse_args()
+    raw_socket = RawSocket()
+    raw_socket.run()
