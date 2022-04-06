@@ -166,11 +166,11 @@ class RawSocket:
         ip_headers, tcp_headers, response_data = self.receive_packet(file_path) # ? What param do I pass in here?
         # Get response content
         # TODO check if content is correct
-        content = utils.parse_response(response_data)
+        headers, body = utils.parse_response(response_data)
 
         # Write content to file
         filename = utils.get_filename(arg_url)
-        utils.write_to_file(arg_url, content)
+        utils.write_to_file(arg_url, body)
 
         # Close socket connections
         self.close_connection()
