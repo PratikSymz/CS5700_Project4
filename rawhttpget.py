@@ -1,4 +1,3 @@
-from ast import Interactive
 import socket, sys, utils, os, time
 
 
@@ -188,7 +187,7 @@ class RawSocket:
         # Receive incoming packet information
         ip_headers, tcp_headers, payload = {}, {}, b''
         while True:
-            # Receive Network layer data
+            # Receive Network layer packet
             ip_headers, tcp_headers, payload = self.receive_ack_packet(self.FLAG_ACK)
 
             # Parse TCP headers (flags) for FIN message
@@ -240,11 +239,11 @@ class RawSocket:
         # ip_headers, tcp_headers, response_data = self.receive_packet(b'')
         # Get response content
         # TODO check if content is correct
-        content = utils.parse_response(appl_layer_packet.decode(utils.FORMAT))
+        headers, body = utils.parse_response(appl_layer_packet.decode(utils.FORMAT))
 
         # Write content to file
         filename = utils.get_filename(arg_url)
-        utils.write_to_file(arg_url, content)
+        utils.write_to_file(arg_url, body)
 
         # Close socket connections
         self.close_connection('CLIENT')
