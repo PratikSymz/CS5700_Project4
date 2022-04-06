@@ -62,7 +62,7 @@ TCP_DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where 
 TCP_ADV_WINDOW = 5840  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
 TCP_CHECKSUM = 0
 TCP_URGENT_PTR = 0
-TCP_CWND = 1
+TCP_MSS = 536
 
 # * https://www.howtouselinux.com/post/tcp-flags#:~:text=TCP%20flags%20are%20various%20types,%2C%20fin%2C%20urg%2C%20psh.
 ''' 
@@ -300,6 +300,17 @@ def unpack_ip_fields(net_layer_packet):
     
     # Return the IP headers and Transport layer packet
     return ip_headers, tport_layer_packet
+
+# TODO: Implement Congestion control algo
+def set_congestion_control(cwnd: int, ssthresh: int, slow_start: bool):
+    cwnd_limit = 1000
+    if slow_start:
+        cwnd = 1
+    else:
+        # TODO: Determine new MSS and include it in the below comparison
+        cwnd = min(cwnd * 2, cwnd_limit)
+
+    return cwnd
 
 def get_localhost_addr():
     ''' Helper method to retrieve the localhost IP address '''
