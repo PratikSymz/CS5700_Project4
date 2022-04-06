@@ -24,14 +24,20 @@ class RawSocket:
             # Raw socket setup
             # Setup Sender side socket (To Server)
             sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            print('created sender\n')
             dest_addr, dest_port = socket.gethostbyname(utils.get_destination_url(self.SERVER_URL)[1]), utils.TCP_DEST_PORT
+            print('addr:', dest_addr, 'port:', dest_port)
             sender_socket.connect((dest_addr, dest_port))
+            print('sender socket connected\n')
 
             # Setup Receiver side socket (To Localhost)
             receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+            print('created receiver\n')
             src_addr = utils.get_localhost_addr()
             src_port = utils.get_localhost_port(receiver_socket, src_addr)
+            print('addr:', src_addr, 'port:', src_port)
             receiver_socket.bind((src_addr, src_port))
+            print('bind receiver socket\n')
             receiver_socket.settimeout(self.TIMEOUT)
 
         except socket.error as socket_error:
