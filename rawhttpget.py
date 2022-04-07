@@ -1,5 +1,5 @@
 from email import header
-import socket, sys, os, time, argparse
+import socket, sys, os, time, argparse, random
 
 import utils
 from headers import ip, tcp
@@ -36,18 +36,18 @@ class RawSocket:
         try:
             # Raw socket setup
             # Setup Sender side socket (To Server)
-            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
             # Set the destination address
             self.destination = (socket.gethostbyname(self.host_url), tcp.DEST_PORT)
 
             # Setup Receiver side socket (To Localhost)
-            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
             # Set the localhost address
             src_addr = utils.get_localhost_addr()
-            src_port = utils.get_localhost_port(self.receiver_socket, src_addr)
+            src_port = random.randint(1024, 65530) #utils.get_localhost_port(self.receiver_socket, src_addr)
             source = (src_addr, src_port)
             # ! Bind source address to receiver socket
-            self.receiver_socket.bind(source)
+            #self.receiver_socket.bind(source)
             # ! How to receive data
             self.receiver_socket.settimeout(self.TIMEOUT)
 
