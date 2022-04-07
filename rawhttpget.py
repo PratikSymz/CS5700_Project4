@@ -67,6 +67,7 @@ class RawSocket:
                 payload - the payload (in bytes) to be sent
             Returns: none
         '''
+        print('Setting Send params!')
         # Maintain a current pointer and a data buffer to send the amount of data defined by the CWND
         curr_ptr = 0
         # Set the congestion window
@@ -79,6 +80,7 @@ class RawSocket:
 
         # Start sending data
         while not segments_transferred:
+            print('Checking send conditions!')
             if (len(data_buffer) > next_ptr - curr_ptr):
                 # Set the payload buffer limit
                 send_buffer = data_buffer[curr_ptr : next_ptr]
@@ -94,11 +96,16 @@ class RawSocket:
                 send_buffer = data_buffer[curr_ptr: ]
                 segments_transferred = True
             
+            print('Wrapping payload!')
             tport_layer_packet = tcp.pack_tcp_fields(flags, send_buffer)
             net_layer_packet = ip.pack_ip_fields(tport_layer_packet)
 
             # Send packet from the Network layer to the server
-            self.sender_socket.sendto(net_layer_packet, self.destination)
+            print('Sending packet to server!')
+            try:
+                self.sender_socket.sendto(net_layer_packet, self.destination)
+            except socket.error as socet_error:
+                sys.exit('Socket Send Error!')
 
     def receive_ack_packet(self, flags: int):
         '''
@@ -202,6 +209,7 @@ class RawSocket:
             tcp.ACK_NUM += 1
             print('Sending Final Handshake!')
             self.send_packet(FLAG_ACK, self.EMPTY_PAYLOAD)
+            print('Handshake complete!')
 
         else:
             self.close_connection('CLIENT')
