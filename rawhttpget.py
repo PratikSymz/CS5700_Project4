@@ -101,16 +101,14 @@ class RawSocket:
             self.sender_socket.sendto(net_layer_packet, self.destination)
 
     def receive_ack_packet(self, flags: int):
-        ''' Helper method to receive packets from the project server to the Network layer '''
         '''
             Function: 
-                send_packet - this method is responsible for sending Network layer packets to the project server. It segments the payload into 
-                    chunks of size dependent on the congestion window. Each chunk is wrapped in TCP and IP headers and sent to the 
-                    project server until all segments have been transferred.
+                receive_ack_packet - this method is responsible for receiving Network layer packets with the ACK bit set from the project server.
+                    Furthermore, if the receiver socket timeouts, it enters retrasmission mode, where it retransmits upto three times. 
+                    Once, the retransmission counter is over, it stops and exits.
             Parameters:
-                flags - the TCP flags to set when sending packet
-                payload - the payload (in bytes) to be sent
-            Returns: none
+                flags - the TCP flags to expect in an ACK packet
+            Returns: the IP headers, TCP headers and the packet payload
         '''
         ip_headers, tcp_headers, payload = {}, {}, self.EMPTY_PAYLOAD
         
@@ -118,8 +116,10 @@ class RawSocket:
             # Receive Network layer packet from the server
             try:
                 net_layer_packet = self.receiver_socket.recv(self.BUFFER_SIZE)  # ! .recvfrom(buff)
+                print('Receiving!')
 
             except socket.timeout:
+                print('Receive Timeout!')
                 # Check if retransmissions happened more than the limit
                 if (self.RETRANSMIT_CTR < self.RETRANSMIT_LMT):
                     # Increment Retransmit counter
@@ -128,6 +128,7 @@ class RawSocket:
                     # Socket timeout, reset CWND and enter slow start mode to retransmit
                     self.CWND = utils.set_congestion_control(self.CWND, tcp.ADV_WINDOW, True)
                     self.send_packet(flags, self.EMPTY_PAYLOAD)
+                    print('Retransmitting! Count: ', self.RETRANSMIT_CTR)
                     continue
 
                 else:
@@ -137,6 +138,8 @@ class RawSocket:
             # Parse Network layer packet
             try:
                 ip_headers, tport_layer_packet = ip.unpack_ip_fields(net_layer_packet)
+                print('Packet received!')
+                print('Parsing IP!')
 
             except socket.error as socket_error:
                 print("Invalid IP packet: " + str(socket_error))
@@ -145,6 +148,7 @@ class RawSocket:
             # Parse Transport layer packet
             try:
                 tcp_headers, payload = tcp.unpack_tcp_fields(tport_layer_packet)
+                print('Parsing TCP!')
 
             except socket.error as socket_error:
                 print("Invalid TCP packet: " + str(socket_error))
@@ -153,15 +157,26 @@ class RawSocket:
             # Check for ACK flag in Handshake and Close connection processes
             if (tcp_headers["flags"] & self.FLAG_ACK > 0):
                # Once server ACK received, break from loop
-                break
+               print('ACK Received!')
+               break
 
         return ip_headers, tcp_headers, payload
 
     def init_tcp_handshake(self):
         ''' Helper method to initiate the TCP three-way handshake: SYN, SYN/ACK, ACK '''
+        '''
+            Function: 
+                receive_ack_packet - this method is responsible for receiving Network layer packets with the ACK bit set from the project server.
+                    Furthermore, if the receiver socket timeouts, it enters retrasmission mode, where it retransmits upto three times. 
+                    Once, the retransmission counter is over, it stops and exits.
+            Parameters:
+                flags - the TCP flags to expect in an ACK packet
+            Returns: the IP headers, TCP headers and the packet payload
+        '''
 
         # 1. Send packet from Network layer with TCP SYN = 1 and payload as Null: SYN<1, 0> bit 1
         self.send_packet(self.FLAG_SYN, self.EMPTY_PAYLOAD)
+        print('TCP Handshake Initiated!')
         
         # Receive incoming packet information
         ip_headers, tcp_headers, payload = self.receive_ack_packet(self.FLAG_SYN)
@@ -185,6 +200,7 @@ class RawSocket:
 
             # Send final handshake message
             tcp.ACK_NUM += 1
+            print('Sending Final Handshake!')
             self.send_packet(FLAG_ACK, self.EMPTY_PAYLOAD)
 
         else:
