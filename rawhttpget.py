@@ -61,7 +61,7 @@ class RawSocket:
         '''
         # Maintain a current pointer and a data buffer to send the amount of data defined by the CWND
         curr_ptr = 0
-        self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS)
+        self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_ADV_WINDOW)
         next_ptr = curr_ptr + (self.CWND * utils.TCP_MSS)
         data_buffer = payload
         segments_transferred = False
@@ -104,7 +104,7 @@ class RawSocket:
                     self.RETRANSMIT_CTR += 1
 
                     # Socket timeout, reset CWND and enter slow start mode to retransmit
-                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS, True)
+                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_ADV_WINDOW, True)
                     self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, flags, utils.TCP_ADV_WINDOW, '')
                     continue
 
@@ -233,14 +233,14 @@ class RawSocket:
                     utils.TCP_ADV_WINDOW = tcp_headers["adv_window"]
 
                     # Update congestion window
-                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS)
+                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_ADV_WINDOW)
 
                     # Send ACK for the packet received and update ACK number of client
                     self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_ACK, utils.TCP_ADV_WINDOW, '')
 
                 else:
                     # Packet dropped - send ACK again
-                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS, True)
+                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_ADV_WINDOW, True)
                     self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_ACK, utils.TCP_ADV_WINDOW, '')
 
         # Sort the TCP segments based on SEQ_NUM and concatenate the payload

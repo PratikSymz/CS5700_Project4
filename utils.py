@@ -184,6 +184,7 @@ def unpack_tcp_fields(tport_layer_packet):
     if (data_offset > 5):    # There are options [0...40B max]
         # ? Extract MSS - WTF should I do with it?
         TCP_OPTIONS = tport_layer_packet[20 : 4 * data_offset]
+        TCP_MSS = unpack('!H', TCP_OPTIONS[0:4][2: ])[0]
 
     payload = tport_layer_packet[4 * data_offset :]
 
@@ -265,8 +266,8 @@ def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
     if slow_start:
         cwnd = 1
     else:
-        # TODO: Determine new MSS and include MMS in comparison
-        cwnd = min(cwnd * 2, cwnd_limit)
+        # Where ssthresh is the ADV_WND (receiver) size
+        cwnd = min(cwnd * 2, cwnd_limit, ssthresh)
 
     return cwnd
 
@@ -417,10 +418,3 @@ def set_fin_bits(tcp_flags: dict):
     tcp_flags["FLAG_TCP_FIN"] = 1
 
     return tcp_flags
-
-if __name__ == "__main__":
-    # ! Pass this as input to the functions or resolve the scoping problem
-    IP_SRC_ADDRESS = socket.inet_aton(get_localhost_addr()[0])
-    IP_DEST_ADDRESS = socket.inet_aton(
-        socket.gethostbyname(get_destination_url('http://david.choffnes.com/classes/cs4700sp22/project4.php')[1])
-    )
