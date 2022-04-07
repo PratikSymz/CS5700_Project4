@@ -17,10 +17,18 @@ class RawSocket:
         self.SERVER_URL = ''
         self.CWND = 1
 
+        self.RETRANSMIT_CTR = 0
+        self.RETRANSMIT_LMT = 3
+
         self.FLAG_SYN = utils.concat_tcp_flags(utils.set_syn_bit(utils.FLAGS_TCP))
         self.FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(utils.FLAGS_TCP))
         self.FLAG_FIN = utils.concat_tcp_flags(utils.set_fin_bits(utils.FLAGS_TCP))
         self.FLAG_FIN_ACK = utils.concat_tcp_flags(utils.set_fin_ack_bits(utils.FLAGS_TCP))
+
+        self.IP_SRC_ADDRESS = socket.inet_aton(utils.get_localhost_addr()[0])
+        self.IP_DEST_ADDRESS = socket.inet_aton(
+                socket.gethostbyname(utils.get_destination_url('http://david.choffnes.com/classes/cs4700sp22/project4.php')[1])
+        )
 
         try:
             # Raw socket setup
@@ -35,6 +43,7 @@ class RawSocket:
             src_port = utils.get_localhost_port(self.receiver_socket, src_addr)
             self.receiver_socket.bind((src_addr, src_port))
             self.receiver_socket.settimeout(self.TIMEOUT)
+            print('Init!')
 
         except socket.error as socket_error:
             # Can't connect with socket
@@ -49,11 +58,10 @@ class RawSocket:
         '''
         # Maintain a current pointer and a data buffer to send the amount of data defined by the CWND
         curr_ptr = 0
+        self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS)
         next_ptr = curr_ptr + (self.CWND * utils.TCP_MSS)
         data_buffer = payload
         segments_transferred = False
-
-        #self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_ADV_WINDOW)
 
         # Start sending data
         while not segments_transferred:
@@ -87,10 +95,19 @@ class RawSocket:
                 net_layer_packet = self.receiver_socket.recv(self.BUFFER_SIZE)
 
             except socket.timeout:
-                # Socket timeout, reset CWND and enter slow start mode to retransmit
-                self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS, True)
-                self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, flags, utils.TCP_ADV_WINDOW, '')
-                continue
+                # Check if retransmissions happened more than the limit
+                if (self.RETRANSMIT_CTR < self.RETRANSMIT_LMT):
+                    # Increment Retransmit counter
+                    self.RETRANSMIT_CTR += 1
+
+                    # Socket timeout, reset CWND and enter slow start mode to retransmit
+                    self.CWND = utils.set_congestion_control(self.CWND, utils.TCP_MSS, True)
+                    self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, flags, utils.TCP_ADV_WINDOW, '')
+                    continue
+
+                else:
+                    self.close_connection('CLIENT')
+                    sys.exit('TCP Handshake failed!')
 
             # Parse Network layer packet
             try:
@@ -146,7 +163,6 @@ class RawSocket:
             self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, FLAG_ACK, utils.TCP_ADV_WINDOW, '')
 
         else:
-            # TODO: Close connection from client side - Server side complete
             self.close_connection('CLIENT')
             sys.exit("3-Way Handshake failed!!!" + "\n")
 
@@ -174,9 +190,9 @@ class RawSocket:
         # Send get request for webpage
         url, host_url = utils.get_destination_url(arg_url)
         request_payload = utils.build_GET_request(url, host_url)
-        
+
+        # Send the GET request to the server
         self.send_packet(utils.TCP_SEQ_NUM, utils.TCP_ACK_NUM, self.FLAG_ACK, utils.TCP_ADV_WINDOW, request_payload)
-        
 
         # Payload sent, update SEQ_NUM
         utils.TCP_SEQ_NUM += len(request_payload)
@@ -230,20 +246,16 @@ class RawSocket:
 
         for _, data_segment in tcp_segments_inorder:
             appl_layer_packet += data_segment
-        
-        # TODO: Extract HTTP header info, parse and save into file
-        # * Final data in appl_layer_packet
 
         # Get file path name
-        file_path = utils.get_filepath(arg_url)
-        # ip_headers, tcp_headers, response_data = self.receive_packet(b'')
+        # file_path = utils.get_filepath(arg_url)
         # Get response content
         # TODO check if content is correct
         headers, body = utils.parse_response(appl_layer_packet.decode(utils.FORMAT))
 
         # Write content to file
         filename = utils.get_filename(arg_url)
-        utils.write_to_file(arg_url, body)
+        utils.write_to_file(filename, body)
 
         # Close socket connections
         self.close_connection('CLIENT')

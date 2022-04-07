@@ -2,47 +2,6 @@ import random, socket
 from struct import pack, unpack
 
 
-""" 
-                        IP HEADER
-0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|Version|  IHL  |Type of Service|          Total Length         |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|         Identification        |Flags|      Fragment Offset    |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|  Time to Live |    Protocol   |         Header Checksum       |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                       Source Address                          |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Destination Address                        |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Options                    |    Padding    |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-"""
-
-# ? https://networklessons.com/cisco/ccie-routing-switching-written/tcp-header
-""" 
-                        TCP HEADER
-0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|          Source Port          |       Destination Port        |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                        Sequence Number                        |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Acknowledgment Number                      |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|  Data |           |U|A|P|R|S|F|                               |
-| Offset| Reserved  |R|C|S|S|Y|I|            Window             |
-|       |           |G|K|H|T|N|N|                               |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|           Checksum            |         Urgent Pointer        |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    Options                    |    Padding    |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                      Network Layer data                       |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-"""
-
 ''' Set of constant fields '''
 HTTP_STATUS_CODE = 200
 FORMAT = 'utf-8'
@@ -52,19 +11,17 @@ HTTP_VERSION = 'HTTP/1.1'
 HOST_NAME_HEADER = 'Host: '
 
 ''' TCP Header fields '''
-# * https://www.quora.com/When-using-a-localhost-how-many-ports-are-there
-# * https://stackoverflow.com/questions/21253474/source-port-vs-destination-port
 TCP_SOURCE_PORT = random.randint(49152, 65535)
 TCP_DEST_PORT = 80
 TCP_SEQ_NUM = random.randint(0, pow(2, 32) - 1)
 TCP_ACK_NUM = 0
-TCP_DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where the data starts. # ? https://networkengineering.stackexchange.com/questions/39272/what-is-data-offset-and-its-uses-in-tcp-header
+TCP_DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where the data starts.
 TCP_ADV_WINDOW = 5840  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
 TCP_CHECKSUM = 0
 TCP_URGENT_PTR = 0
-TCP_MSS = 536
+TCP_MSS = 1386  #536
+TCP_OPTIONS = None
 
-# * https://www.howtouselinux.com/post/tcp-flags#:~:text=TCP%20flags%20are%20various%20types,%2C%20fin%2C%20urg%2C%20psh.
 ''' 
 TCP Flags
     1. Finish: FLAG_TCP_FIN, 
@@ -79,7 +36,6 @@ FLAGS_TCP = {"FLAG_TCP_FIN": 0, "FLAG_TCP_SYN": 0, "FLAG_TCP_RST": 0, "FLAG_TCP_
 
 ''' IP Header fields '''
 # Convert IP addr dotted-quad string into 32 bit binary format
-# * https://pythontic.com/modules/socket/inet_aton
 IP_VERSION = 4
 IP_HEADER_LEN = 5
 IP_TOS = 0
@@ -116,7 +72,7 @@ KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', '
 
 def compute_header_checksum(header_data):
     ''' Helper method to calculate checksum '''
-    ''' Refereced from Suraj Singh, Bitforestinfo '''
+    ''' Referenced from Suraj Singh, Bitforestinfo '''
     binary_checksum = 0
 
     # Loop taking two characters at a time
@@ -202,7 +158,10 @@ def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, pay
         TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, flags, adv_window, checksum, TCP_URGENT_PTR
     ) # prev change: + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
 
-    tport_layer_packet = tcp_header + payload.encode(FORMAT)
+    tport_layer_packet = tcp_header
+    if (TCP_OPTIONS != None):
+        tport_layer_packet += TCP_OPTIONS
+    tport_layer_packet += payload.encode(FORMAT)
     
     return tport_layer_packet
 
@@ -224,7 +183,7 @@ def unpack_tcp_fields(tport_layer_packet):
     # If this offset is = 5 words means that Options and Padding fields are empty, so..
     if (data_offset > 5):    # There are options [0...40B max]
         # ? Extract MSS - WTF should I do with it?
-        tcp_options = tport_layer_packet[20 : 4 * data_offset]
+        TCP_OPTIONS = tport_layer_packet[20 : 4 * data_offset]
 
     payload = tport_layer_packet[4 * data_offset :]
 
@@ -301,7 +260,6 @@ def unpack_ip_fields(net_layer_packet):
     # Return the IP headers and Transport layer packet
     return ip_headers, tport_layer_packet
 
-# TODO: Implement Congestion control algo
 def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
     cwnd_limit = 1000
     if slow_start:

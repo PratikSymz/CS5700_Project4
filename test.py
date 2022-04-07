@@ -1,4 +1,4 @@
-import utils, socket
+import utils, socket, struct
 
 # data_ip = b"45000592464540002a069ddfcc2cc03c0a6ed06a"
 data_ip = bytes.fromhex("4500003c000040002a06e97acc2cc03c0a6ed06a")
@@ -11,3 +11,6 @@ data_tcp = bytes.fromhex("0050c6b762a01b46a4269c94a0127120995e00000204056a040208
 IP_SRC_ADDRESS = socket.inet_aton('204.44.192.60')
 IP_DEST_ADDRESS = socket.inet_aton('10.110.208.106')
 # print(IP_SRC_ADDRESS, IP_DEST_ADDRESS)
+
+data = struct.unpack('<i', b'\x02\x04\x05j\x04\x02\x08\n\xbe\xb9\\\xb5\xbbhy\xf8\x01\x03\x03\x07'[0:4])
+print(int.from_bytes(b'\x02\x04\x05j\x04\x02\x08\n\xbe\xb9\\\xb5\xbbhy\xf8\x01\x03\x03\x07'[0:4], byteorder='little', signed=True))
