@@ -36,12 +36,12 @@ class RawSocket:
         try:
             # Raw socket setup
             # Setup Sender side socket (To Server)
-            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
+            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
             # Set the destination address
             self.destination = (socket.gethostbyname(self.host_url), tcp.DEST_PORT)
 
             # Setup Receiver side socket (To Localhost)
-            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
             # Set the localhost address
             src_addr = utils.get_localhost_addr()
             src_port = random.randint(1024, 65530) #utils.get_localhost_port(self.receiver_socket, src_addr)
@@ -104,7 +104,7 @@ class RawSocket:
             print('Sending packet to server!')
             try:
                 self.sender_socket.sendto(net_layer_packet, self.destination)
-            except socket.error as socet_error:
+            except socket.error:
                 sys.exit('Socket Send Error!')
 
     def receive_ack_packet(self, flags: int):
