@@ -2,7 +2,7 @@ import random, socket
 from struct import pack, unpack
 from typing import Optional
 
-import new_utils
+import utils
 
 
 class tcp:
@@ -69,7 +69,7 @@ class tcp:
         )
 
         # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
-        checksum = new_utils.compute_header_checksum(temp_tcp_header + payload + pseudo_ip_header)  # ! payload.encode(FORMAT)
+        checksum = utils.compute_header_checksum(temp_tcp_header + payload + pseudo_ip_header)  # ! payload.encode(FORMAT)
 
         # Repack TCP header
         tcp_header = pack(
@@ -133,7 +133,7 @@ class tcp:
         )
 
         # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
-        return (packet_checksum == new_utils.compute_header_checksum(pseudo_ip_header + temp_tcp_header + payload))
+        return (packet_checksum == utils.compute_header_checksum(pseudo_ip_header + temp_tcp_header + payload))
 
 
 class ip:
@@ -181,7 +181,7 @@ class ip:
             ip.VER_HEADER_LEN, ip.TOS, ip.DGRAM_LEN, ip.ID, ip.FLAGS, ip.TTL, ip.PROTOCOL, ip.DEFAULT_CHECKSUM, ip.SRC_ADDRESS, ip.DEST_ADDRESS
         )
 
-        checksum = new_utils.compute_header_checksum(temp_ip_header)
+        checksum = utils.compute_header_checksum(temp_ip_header)
 
         # Repack IP Header with the checksum
         net_layer_packet = pack(
@@ -237,6 +237,6 @@ class ip:
             ip_headers["vhl"], ip_headers["tos"], ip_headers["total_len"], ip_headers["id"], ip_headers["flags"], ip_headers["ttl"], ip_headers["protocol"], ip.DEFAULT_CHECKSUM, ip_headers["src_addr"], ip_headers["dest_addr"]
         )
 
-        checksum = new_utils.compute_header_checksum(temp_ip_header)
+        checksum = utils.compute_header_checksum(temp_ip_header)
 
         return (checksum == packet_checksum)

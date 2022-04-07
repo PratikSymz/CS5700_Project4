@@ -1,81 +1,24 @@
 import random, socket
-from struct import pack, unpack
 
 
 ''' Set of constant fields '''
 HTTP_STATUS_CODE = 200
-FORMAT = 'utf-8'
 
 ''' Set of constant fields for HTTP connection '''
 HTTP_VERSION = 'HTTP/1.1'
 HOST_NAME_HEADER = 'Host: '
 
-''' TCP Header fields '''
-TCP_SOURCE_PORT = random.randint(49152, 65535)
-TCP_DEST_PORT = 80
-TCP_SEQ_NUM = random.randint(0, pow(2, 32) - 1)
-TCP_ACK_NUM = 0
-TCP_DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where the data starts.
-TCP_ADV_WINDOW = 5840  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
-TCP_CHECKSUM = 0
-TCP_URGENT_PTR = 0
-TCP_MSS = 1386  #536
-TCP_OPTIONS = None
-
-''' 
-TCP Flags
-    1. Finish: FLAG_TCP_FIN, 
-    2. Synchronize: FLAG_TCP_SYN, 
-    3. Reset: FLAG_TCP_RST, 
-    4. Push: FLAG_TCP_PSH, 
-    5. Acknowledgement: FLAG_TCP_ACK, 
-    6. Urgent: FLAG_TCP_URG
-'''
-FLAGS_TCP = {"FLAG_TCP_FIN": 0, "FLAG_TCP_SYN": 0, "FLAG_TCP_RST": 0, "FLAG_TCP_PSH": 0, "FLAG_TCP_ACK": 0, "FLAG_TCP_URG": 0}
-
-
-''' IP Header fields '''
-# Convert IP addr dotted-quad string into 32 bit binary format
-IP_VERSION = 4
-IP_HEADER_LEN = 5
-IP_TOS = 0
-IP_DGRAM_LEN = 20     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
-IP_ID = 54321
-IP_TTL = 255
-IP_PROTOCOL = socket.IPPROTO_TCP
-IP_CHECKSUM = 0
-IP_SRC_ADDRESS = None
-IP_DEST_ADDRESS = None
-IP_PADDING = 0
-IP_VER_HEADER_LEN = (IP_VERSION << 4) + IP_HEADER_LEN
-
-''' IP Flags '''
-# TODO: Remove other flags except FRAG_OFFSET if not needed
-FLAG_IP_RSV = 0
-FLAG_IP_DTF = 0
-FLAG_IP_MRF = 0
-FLAG_IP_FRAG_OFFSET = 0
-IP_FLAGS = (FLAG_IP_RSV << 7) + (FLAG_IP_DTF << 6) + (FLAG_IP_MRF << 5) + (FLAG_IP_FRAG_OFFSET)
-
-''' Header formats '''
-# '!' - Network packet order
-TCP_HEADER_FORMAT = '!HHLLBBHHH'
-# TCP_HEADER_SEGMENT_FORMAT = '!HHLLBBH'
-PSEUDO_IP_HEADER_FORMAT = '!4s4sBBH'
-
-IP_HEADER_FORMAT = '!BBHHHBBH4s4s'
-#IP_HEADER_SEGMENT_FORMAT = '!4s4s'
-
-''' IP and TCP header field keys '''
-KEYS_TCP_FIELDS = ['src_port', 'dest_port', 'seq_num', 'ack_num', 'data_offset', 'flags', 'adv_window', 'checksum', 'urgent_ptr']
-KEYS_IP_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_len', 'frag_offset']
-
-def compute_header_checksum(header_data):
-    ''' Helper method to calculate checksum '''
+def compute_header_checksum(header_data: bytes):
+    '''
+        Function: compute_header_checksum - computes the header checksum for TCP/IP headers to send to the server
+        Parameters:
+            header_data - header information in bytes
+        Returns: the header checksum value in bytes
+    '''
     ''' Referenced from Suraj Singh, Bitforestinfo '''
     binary_checksum = 0
 
-    # Loop taking two characters at a time
+    # Loop taking two characters at a time and adding blocks of bytes
     for i in range(0, len(header_data), 2):
         if (i == len(header_data) - 1):
             binary_checksum += header_data[i]
@@ -86,204 +29,50 @@ def compute_header_checksum(header_data):
     while (binary_checksum >> 16 != 0):
         binary_checksum = (binary_checksum & 0xffff) + (binary_checksum >> 16)
     
+    # Complement checksum and mask it to 2 byte short
     return ~binary_checksum & 0xffff
 
-def validate_tcp_header_checksum(packet_checksum: bytes, tcp_fields: dict, tport_layer_packet: bytes, tcp_options: bytes, payload: bytes):
-    ''' Helper method to verify TCP checksum '''
-    tcp_header = pack(
-        TCP_HEADER_FORMAT, 
-        tcp_fields["src_port"], tcp_fields["dest_port"], tcp_fields["seq_num"], tcp_fields["ack_num"], tcp_fields["data_offset"], tcp_fields["flags"], tcp_fields["adv_window"], TCP_CHECKSUM, tcp_fields["urgent_ptr"]
-    ) + tcp_options  # TCP Options wasn't unpacked hence, no need to be packed again
-
-    tcp_segment_length = len(tport_layer_packet)    # Already contains payload
-    pseudo_ip_header = pack(
-        PSEUDO_IP_HEADER_FORMAT,
-        IP_SRC_ADDRESS, IP_DEST_ADDRESS, IP_PADDING, IP_PROTOCOL, tcp_segment_length
-    )
-
-    # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
-    # ? Do I need to create TCP headers again to compute checksum
-    return (packet_checksum == compute_header_checksum(pseudo_ip_header + tcp_header + payload))
-
-def validate_ip_header_checksum(packet_checksum, ip_headers: dict):
-    ''' Helper method to verify IP checksum '''
-    temp_ip_header = pack(
-        IP_HEADER_FORMAT,
-        ip_headers["vhl"], ip_headers["tos"], ip_headers["total_len"], ip_headers["id"], ip_headers["flags"], ip_headers["ttl"], ip_headers["protocol"], IP_CHECKSUM, ip_headers["src_addr"], ip_headers["dest_addr"]
-    )
-
-    checksum = compute_header_checksum(temp_ip_header)
-
-    return (checksum == packet_checksum)
-
-# ? Check if we can split pack and re-pack functions for TCP fields
-def pack_tcp_fields(seq_num: int, ack_num: int, flags: int, adv_window: int, payload: str):
-    '''
-    Helper method to instantiate TCP fields: Takes in TCP fields as params that do not remain constant and pack with the data
-        1. param: seq_num - sequence number of the current packet
-        2. param: ack_num - acknowledgement number of last ACKed packet
-        3. param: flags - flags that will be changed (SYN, ACK, FIN)
-        4. param: adv_window - current advertised window of the receiver # ? Re-evaluate whether we need it
-        5. param: data - payload to be send over the raw socket connection
-        6. return: Data packet with the TCP header added on top of the payload (data)
-    '''
-    temp_tcp_header = pack(
-        TCP_HEADER_FORMAT,
-        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, flags, adv_window, TCP_CHECKSUM, TCP_URGENT_PTR
-    )
-
-    tcp_segment_length = len(temp_tcp_header) + len(payload)
-
-    ''' Checksum of the TCP is calculated by taking into account TCP header, TCP body and Pseudo IP header
-        * Cannot correctly guess the IP header size from Transport layer
-        * Calculate checksum using part of the IP header info that will remain unchanged in every packet
-        * Pseudo IP Header fields (in order):
-            1. IP of Source and Destination
-            2. Padding/Placeholder (8 bits)
-            3. Protocol (type of protocol)
-            4. TCP/UDP Segment length
-        * Only used for TCP Checksum calculation, discarded later and not sent to the Network layer
-    '''
-    pseudo_ip_header = pack(
-        PSEUDO_IP_HEADER_FORMAT,
-        IP_SRC_ADDRESS, IP_DEST_ADDRESS, IP_PADDING, IP_PROTOCOL, tcp_segment_length
-    )
-
-    # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
-    checksum = compute_header_checksum(temp_tcp_header + payload.encode(FORMAT) + pseudo_ip_header)
-
-    # Repack TCP header
-    tcp_header = pack(
-        TCP_HEADER_FORMAT,
-        TCP_SOURCE_PORT, TCP_DEST_PORT, seq_num, ack_num, TCP_DATA_OFFSET, flags, adv_window, checksum, TCP_URGENT_PTR
-    ) # prev change: + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
-
-    tport_layer_packet = tcp_header
-    if (TCP_OPTIONS != None):
-        tport_layer_packet += TCP_OPTIONS
-    tport_layer_packet += payload.encode(FORMAT)
-    
-    return tport_layer_packet
-
-def unpack_tcp_fields(tport_layer_packet):
-    '''
-    Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
-        1. param: tport_layer_packet - Data from the Transport layer (TCP header + payload)
-        2. return: a key-value table of the fields of the TCP header and the payload
-    '''
-    # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
-    tcp_header_fields = unpack(TCP_HEADER_FORMAT, tport_layer_packet[ :20])
-    tcp_headers = dict(zip(KEYS_TCP_FIELDS, tcp_header_fields))
-
-    # Validate presence of any TCP options
-    # 1. Shift offset 4 bits from data offset field and get no. of words value
-    data_offset = tcp_headers["data_offset"] >> 4
-    tcp_options = b''
-
-    # If this offset is = 5 words means that Options and Padding fields are empty, so..
-    if (data_offset > 5):    # There are options [0...40B max]
-        # ? Extract MSS - WTF should I do with it?
-        TCP_OPTIONS = tport_layer_packet[20 : 4 * data_offset]
-        TCP_MSS = unpack('!H', TCP_OPTIONS[0:4][2: ])[0]
-
-    payload = tport_layer_packet[4 * data_offset :]
-
-    # Validate: if packet is headed towards the correct destination port
-    if (tcp_headers["dest_port"] != TCP_SOURCE_PORT):
-        raise Exception('TCP: Invalid Dest. PORT!')
-
-    # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
-    if (not validate_tcp_header_checksum(tcp_headers["checksum"], tcp_headers, tport_layer_packet, tcp_options, payload)):
-        raise Exception('TCP: Invalid CHECKSUM!')
-
-    # Return the TCP headers and payload
-    return tcp_headers, payload
-
-def pack_ip_fields(tport_layer_packet):
-    '''
-    Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
-        param: tcp_packet - packet from the Transport layer and the payload
-        return: Network layer packet with the IP header wrapped around
-    '''
-    IP_ID = random.randint(0, pow(2, 16) - 1)   # ID MAX: 65535
-    IP_DGRAM_LEN = 20 + len(tport_layer_packet)
-
-    temp_ip_header = pack(
-        IP_HEADER_FORMAT,
-        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, IP_CHECKSUM, IP_SRC_ADDRESS, IP_DEST_ADDRESS
-    )
-
-    checksum = compute_header_checksum(temp_ip_header)
-
-    # Repack IP Header with the checksum
-    net_layer_packet = pack(
-        IP_HEADER_FORMAT,
-        IP_VER_HEADER_LEN, IP_TOS, IP_DGRAM_LEN, IP_ID, IP_FLAGS, IP_TTL, IP_PROTOCOL, checksum, IP_SRC_ADDRESS, IP_DEST_ADDRESS
-    )
-
-    return net_layer_packet
-
-def unpack_ip_fields(net_layer_packet):
-    '''
-    Helper method to unpack the IP fields from the transport layer packet.
-        param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
-        return: network layer packet containing TCP headers and payload
-    '''
-    ip_header_fields = unpack(IP_HEADER_FORMAT, net_layer_packet[ :20])
-    ip_headers = dict(zip(KEYS_IP_FIELDS, ip_header_fields))
-
-    ip_headers["version"] = (ip_headers["vhl"] >> 4)
-    ip_headers["header_len"] = (ip_headers["vhl"] & 0x0f)
-    ip_headers["frag_offset"] = (ip_headers["flags"] & 0x1fff)
-
-    options_offset = ip_headers["header_len"] >> 4
-    ip_options = None
-    # check for ip options
-    if (ip_headers["header_len"] > 5):
-        ip_options = net_layer_packet[20 : 4 * options_offset]
-
-    # The IP header payload
-    tport_layer_packet = net_layer_packet[4 * options_offset: ]
-
-    # Verify IP fields
-    if (ip_headers["dest_addr"] != IP_SRC_ADDRESS):
-        raise Exception('IP: Invalid Dest. IP ADDR!')
-
-    if (ip_headers["version"] != IP_VERSION):
-        raise Exception('IP: Invalid NOT IPv4!')
-
-    if (ip_headers["protocol"] != IP_PROTOCOL):
-        raise Exception('IP: Invalid PROTOCOL!')
-
-    if (not validate_ip_header_checksum(ip_headers["checksum"], ip_headers)):
-        raise Exception('IP: Invalid CHECKSUM!')
-    
-    # Return the IP headers and Transport layer packet
-    return ip_headers, tport_layer_packet
-
 def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
+    '''
+        Function: set_congestion_control - sets the congestion window value for data transmission limit
+        Parameters: 
+            cwnd - the current congestion window, 
+            ssthresh - the advertised window limit of the client, 
+            slow_start - the flag to determine whether to reset congestion window and begin slow start
+        Returns: the congestion window value
+    '''
     cwnd_limit = 1000
     if slow_start:
         cwnd = 1
     else:
-        # Where ssthresh is the ADV_WND (receiver) size
+        # Where ssthresh is the ADV_WND (receiver) limit
         cwnd = min(cwnd * 2, cwnd_limit, ssthresh)
 
     return cwnd
 
 def get_localhost_addr():
-    ''' Helper method to retrieve the localhost IP address '''
+    '''
+        Function: get_localhost_addr - determines the localhost ip address by pinging to Google's primary DNS server
+        Parameters: none
+        Returns: the localhost ip address
+    '''
     host_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     host_socket.connect(('8.8.8.8', 80))
     
-    # Returns the localhost name: (IP Address, Port No.)
+    # returns the localhost name: (IP Address, Port No.)
     localhost = host_socket.getsockname()
     host_socket.close()
 
     return localhost[0]
 
-def get_localhost_port(receiver_socket, receiver_ip):
-    ''' Helper method to determine the available localhost port no. '''
+def get_localhost_port(receiver_socket: socket.socket, receiver_ip: str):
+    '''
+        Function: get_localhost_port - determines the available localhost port no. to initiate communication\n
+        Parameters: 
+            receiver_socket - the receiver-side (localhost) socket
+            receiver_ip - the receiver-side (localhost) ip address
+        Returns: the localhost port number
+    '''
     random_port = 0
     while True:
         random_port = random.randint(49152, 65535)
@@ -296,16 +85,20 @@ def get_localhost_port(receiver_socket, receiver_ip):
 
     return random_port
 
-# Only support standard 'http' urls
 def get_destination_url(arg_url: str):
-    ''' Helper method to extract the destination address from the argument input '''
+    '''
+        Function: get_destination_url - extracts the destination address from the argument url
+        Parameters: 
+            arg_url - the argument url from the script
+        Returns: the url without the 'http' header and the host url
+    '''
+    # Only support standard 'http' urls
+    if (arg_url.startswith('https://')):
+        raise Exception('Invalid URL!')
+    
     url, host_url = '', ''
-
     if (arg_url.startswith('http://')):
         url = arg_url[7: ]
-    
-    elif (arg_url.startswith('https://')):
-        raise Exception('Invalid URL!')
 
     if '/' in url:
         ptr = url.find('/')
@@ -313,38 +106,31 @@ def get_destination_url(arg_url: str):
 
     return url, host_url
 
-def get_filepath(arg_url: str):
-    ''' Helper method to get the file path name from the url '''
-    fp, url = ''
-
-    if (arg_url.startswith('https://')):
-        raise Exception('Invalid URL')
-
-    url = arg_url[7: ]
-    if ('/' in url):
-        ptr = url.find('/')
-        fp = url[ptr: ]
-
-    return fp
-
 def get_filename(url_path: str):
     '''
-    Helper method to get the filename from the given path
-        param: url_path - either a full url or the file path of the webpage
-        return: filename string to be used to write content into
+        Function: get_filename - extracts the filename from the given url path
+        Parameters: 
+            url_path - the argument url from the script input
+        Returns: the filename string to be used to write content to
     '''
-    fn = ''
+    file_name = ''
     split_path = url_path.split('/')
 
     if (split_path[-1] == '' or split_path[-1].count('.') > 1):
-        fn = 'index.html'
+        file_name = 'index.html'
     else:
-        fn = split_path[-1]
+        file_name = split_path[-1]
 
-    return fn
+    return file_name
 
 def build_GET_request(url: str, host_url: str):
-    ''' Helper method to build HTTP GET request using the argument url '''
+    '''
+        Function: build_GET_request - builds the HTTP GET request using the argument url
+        Parameters: 
+            url - the destination url with the paths
+            host_url - the destination hostname
+        Returns: the HTTP GET request
+    '''
     message_lines = [
         'GET http://' + url + ' ' + HTTP_VERSION, 
         HOST_NAME_HEADER + host_url
@@ -352,48 +138,84 @@ def build_GET_request(url: str, host_url: str):
     
     return '\r\n'.join(message_lines) + '\r\n\r\n'
 
-# ? do we only need the html body or headers as well
-def parse_response(data: str):
+def parse_response(http_response: str):
     '''
-    Helper method that parses the response data from the get request and returns the content of the response
-        param: data - response data received from the get request
-        return: response body containing webpage content in byte format
+        Function: parse_response - parses the response data from the GET request and returns the raw content of the response
+        Parameters: 
+            http_response - the http response received from server
+        Returns: the raw headers and raw HTML body
     '''
-    response = data.split("\r\n\r\n")
+    sections = http_response.split('\r\n\r\n')
+    # sections[0] - raw Headers, sections[1] - raw HTML data
+    # The response is only HTTP Headers (i.e., just after log in)
+    if (len(sections) < 2):
+        return sections[0], ''
+    
+    return sections[0], sections[1]
+
+def parse_headers(raw_headers: str):
+    '''
+        Function: parse_headers - parse the raw HTTP headers to a key-value pair table
+        Parameters: 
+            raw_headers - the raw http headers
+        Returns: the parsed http headers in key-value format
+    '''
+    # Header dictionary
     headers = {}
-    raw_headers = response[0].split("\r\n")
-    raw_body = response[1] if len(response) == 2 else ''
+    lines = raw_headers.splitlines()[1: ]
 
-    for header in raw_headers[1: ]:
-        item = header.split(": ")
-        if (item[0] in headers):
-            headers[item[0]] = f"{headers.get(item[0])}\n{item[1]}" #headers[item[0]] = headers.get(item[0]) + "\n" + item[1]
+    for line in lines:
+        header = line.split(': ')
+        # Add each header title and value to the dictionary
+        # If header already exists - 'Set-Cookie' for CSRF and Session ID - Then merge the both
+        if (header[0] in headers):
+            headers[header[0]] = f"{headers.get(header[0])}\n{header[1]}"
         else:
-            headers[item[0]] = item[1]
+            headers[header[0]] = header[1]
+    
+    return headers
 
-    return headers, raw_body
-
-# TODO check if correct content written
-def write_to_file(filename: str, content: str):
+# ! check if correct content written
+def write_to_file(file_name: str, content: str):
     '''
-    Helper method to write and save content into a file
-        param: filename - name of the file to write to; if file does not exist, create it
-               content - content to be written into the file
+        Function: write_to_file - writes and saves content to a file
+        Parameters: 
+            file_name - the name of the file to write to; if file does not exist, it is created
+            content - the content to be written to the file
+        Returns: none
     '''
-    f = open(filename, 'w+') # not sure if it needs to be set for binary just yet - left as default for now
-    f.write(content)
-    f.close()
+    file = open(file_name, 'w+') # ! not sure if it needs to be set for binary just yet - left as default for now
+    file.write(content)
+    file.close()
 
 def concat_tcp_flags(tcp_flags: dict):
-    return tcp_flags["FLAG_TCP_FIN"] + (tcp_flags["FLAG_TCP_SYN"] << 1) + (tcp_flags["FLAG_TCP_RST"] << 2) + (tcp_flags["FLAG_TCP_PSH"] << 3) + (tcp_flags["FLAG_TCP_ACK"] << 4) + (tcp_flags["FLAG_TCP_URG"] << 5)
+    '''
+        Function: concat_tcp_flags - concatenates the TCP flags to a single header flag field
+        Parameters: 
+            tcp_flags - the dictionary (hash table) of TCP flags and their corresponding bit values
+        Returns: the concatenated TCP header flag field value
+    '''
+    return tcp_flags["FLAG_FIN"] + (tcp_flags["FLAG_SYN"] << 1) + (tcp_flags["FLAG_RST"] << 2) + (tcp_flags["FLAG_PSH"] << 3) + (tcp_flags["FLAG_ACK"] << 4) + (tcp_flags["FLAG_URG"] << 5)
 
 def set_syn_bit(tcp_flags: dict):
+    '''
+        Function: set_syn_bit - set the SYN flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Parameters: 
+            tcp_flags - the TCP flags dictionary (hash table)
+        Returns: the modified TCP flags
+    '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
     tcp_flags["FLAG_TCP_SYN"] = 1
 
     return tcp_flags
 
 def set_syn_ack_bits(tcp_flags: dict):
+    '''
+        Function: set_syn_ack_bits - set the SYN and ACK flags to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Parameters: 
+            tcp_flags - the TCP flags dictionary (hash table)
+        Returns: the modified TCP flags
+    '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
     tcp_flags["FLAG_TCP_SYN"] = 1
     tcp_flags["FLAG_TCP_ACK"] = 1
@@ -401,12 +223,24 @@ def set_syn_ack_bits(tcp_flags: dict):
     return tcp_flags
 
 def set_ack_bit(tcp_flags: dict):
+    '''
+        Function: set_ack_bit - set the ACK flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Parameters: 
+            tcp_flags - the TCP flags dictionary (hash table)
+        Returns: the modified TCP flags
+    '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
     tcp_flags["FLAG_TCP_ACK"] = 1
 
     return tcp_flags
 
 def set_fin_ack_bits(tcp_flags: dict):
+    '''
+        Function: set_fin_ack_bits - set the FIN and ACK flags to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Parameters: 
+            tcp_flags - the TCP flags dictionary (hash table)
+        Returns: the modified TCP flags
+    '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
     tcp_flags["FLAG_TCP_FIN"] = 1
     tcp_flags["FLAG_TCP_ACK"] = 1
@@ -414,6 +248,12 @@ def set_fin_ack_bits(tcp_flags: dict):
     return tcp_flags
 
 def set_fin_bits(tcp_flags: dict):
+    '''
+        Function: set_fin_bits - set the FIN flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Parameters: 
+            tcp_flags - the TCP flags dictionary (hash table)
+        Returns: the modified TCP flags
+    '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
     tcp_flags["FLAG_TCP_FIN"] = 1
 
