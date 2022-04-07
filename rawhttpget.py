@@ -30,7 +30,7 @@ class RawSocket:
         self.FLAG_FIN_ACK = utils.concat_tcp_flags(utils.set_fin_ack_bits(tcp.FLAGS))
         
         ''' Instantiate the IP Header Source and Destination addresses '''
-        ip.SRC_ADDRESS = socket.inet_aton(utils.get_localhost_addr()[0])
+        ip.SRC_ADDRESS = socket.inet_aton(utils.get_localhost_addr())
         ip.DEST_ADDRESS = socket.inet_aton(socket.gethostbyname(self.host_url))
 
         try:
@@ -46,8 +46,6 @@ class RawSocket:
             src_addr = utils.get_localhost_addr()
             src_port = random.randint(1024, 65530) #utils.get_localhost_port(self.receiver_socket, src_addr)
             source = (src_addr, src_port)
-            # ! Bind source address to receiver socket
-            #self.receiver_socket.bind(source)
             # ! How to receive data
             self.receiver_socket.settimeout(self.TIMEOUT)
 
