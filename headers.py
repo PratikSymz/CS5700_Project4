@@ -187,7 +187,7 @@ class ip:
         net_layer_packet = pack(
             ip.HEADER_FORMAT,
             ip.VER_HEADER_LEN, ip.TOS, ip.DGRAM_LEN, ip.ID, ip.FLAGS, ip.TTL, ip.PROTOCOL, checksum, ip.SRC_ADDRESS, ip.DEST_ADDRESS
-        )
+        ) + tport_layer_packet
 
         return net_layer_packet
 
