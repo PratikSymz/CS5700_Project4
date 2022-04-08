@@ -94,6 +94,7 @@ class tcp:
         # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
         tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
         tcp_headers = dict(zip(tcp.KEYS_FIELDS, tcp_header_fields))
+        print(tcp_headers)
 
         # Validate presence of any TCP options
         # 1. Shift offset 4 bits from data offset field and get no. of words value
@@ -116,7 +117,6 @@ class tcp:
             raise Exception('TCP: Invalid CHECKSUM!')
 
         # Return the TCP headers and payload
-        print(tcp_headers)
         print(payload)
         return tcp_headers, payload
 
