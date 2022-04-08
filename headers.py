@@ -74,7 +74,7 @@ class tcp:
         # Repack TCP header
         tcp_header = pack(
             tcp.HEADER_FORMAT,
-            tcp.SOURCE_PORT, tcp.DEST_PORT, tcp.SEQ_NUM, tcp.ACK_NUM, tcp.DATA_OFFSET, flags, tcp.ADV_WINDOW, checksum, tcp.URGENT_PTR
+            tcp.SOURCE_PORT, tcp.DEST_PORT, tcp.SEQ_NUM, tcp.ACK_NUM, tcp.DATA_OFFSET << 4, flags, tcp.ADV_WINDOW, checksum, tcp.URGENT_PTR
         ) # prev change: + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
 
         tport_layer_packet = tcp_header
