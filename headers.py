@@ -1,5 +1,6 @@
 import random, socket
 from struct import pack, unpack
+from traceback import print_tb
 from typing import Optional
 
 import utils
@@ -111,10 +112,12 @@ class tcp:
             raise Exception('TCP: Invalid Dest. PORT!')
 
         # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
-        # if (not tcp.validate_header_checksum(tcp_headers["checksum"], tcp_headers, tport_layer_packet, tcp.OPTIONS, payload)):
-        #     raise Exception('TCP: Invalid CHECKSUM!')
+        if (not tcp.validate_header_checksum(tcp_headers["checksum"], tcp_headers, tport_layer_packet, tcp.OPTIONS, payload)):
+            raise Exception('TCP: Invalid CHECKSUM!')
 
         # Return the TCP headers and payload
+        print(tcp_headers)
+        print(payload)
         return tcp_headers, payload
 
     @staticmethod
@@ -223,10 +226,11 @@ class ip:
         if (ip_headers["protocol"] != ip.PROTOCOL):
             raise Exception('IP: Invalid PROTOCOL!')
 
-        # if (not ip.validate_header_checksum(ip_headers["checksum"], ip_headers)):
-        #     raise Exception('IP: Invalid CHECKSUM!')
+        if (not ip.validate_header_checksum(ip_headers["checksum"], ip_headers)):
+            raise Exception('IP: Invalid CHECKSUM!')
         
         # Return the IP headers and Transport layer packet
+        print(ip_headers)
         return ip_headers, tport_layer_packet
 
     @staticmethod
