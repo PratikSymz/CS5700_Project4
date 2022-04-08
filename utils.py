@@ -5,7 +5,7 @@ import random, socket
 HTTP_VERSION = 'HTTP/1.1'
 HOST_NAME_HEADER = 'Host: '
 
-def compute_header_checksum(header_data: bytes):
+def compute_header_checksum(msg):
     '''
         Function: compute_header_checksum - computes the header checksum for TCP/IP headers to send to the server
         Parameters:
@@ -13,21 +13,22 @@ def compute_header_checksum(header_data: bytes):
         Returns: the header checksum value in bytes
     '''
     ''' Referenced from Suraj Singh, Bitforestinfo '''
-    binary_checksum = 0
+    s = 0
 
     # Loop taking two characters at a time and adding blocks of bytes
-    for i in range(0, len(header_data), 2):
-        if (i == len(header_data) - 1):
-            binary_checksum += header_data[i]
-        else:
-            binary_checksum += header_data[i] + (header_data[i + 1] << 8)
+    for i in range(0, len(msg), 2):
+        w = msg[i] + ((msg[i + 1]) << 8)
+        s = s + w
 
     # Compute 1's complement
-    while (binary_checksum >> 16 != 0):
-        binary_checksum = (binary_checksum & 0xffff) + (binary_checksum >> 16)
+    # while (binary_checksum >> 16 != 0):
+    s = (s >> 16) + (s & 0xffff)
+    s = s + (s >> 16)
     
-    # Complement checksum and mask it to 2 byte short
-    return ~binary_checksum & 0xffff
+    # Complement checksum and mask it to 4 byte short
+    s = ~s & 0xffff
+
+    return s
 
 def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
     '''
