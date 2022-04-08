@@ -218,6 +218,7 @@ class ip:
 
         # Verify IP fields
         if (ip_headers["dest_addr"] != ip.SRC_ADDRESS):
+            print(ip_headers["dest_addr"], ip.SRC_ADDRESS)
             raise Exception('IP: Invalid Dest. IP ADDR!')
 
         if (ip_headers["version"] != ip.VERSION):
