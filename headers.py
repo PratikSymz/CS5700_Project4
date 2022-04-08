@@ -107,6 +107,7 @@ class tcp:
         payload = tport_layer_packet[4 * tcp.DATA_OFFSET: ]
 
         # Validate: if packet is headed towards the correct destination port
+        print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
         if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
             raise Exception('TCP: Invalid Dest. PORT!')
 
@@ -219,8 +220,6 @@ class ip:
         # Verify IP fields
         if (ip_headers["dest_addr"] != ip.SRC_ADDRESS):
             raise Exception('IP: Invalid Dest. IP ADDR!')
-        else:
-            print(ip_headers["dest_addr"], ip.SRC_ADDRESS)
 
         if (ip_headers["version"] != ip.VERSION):
             raise Exception('IP: Invalid NOT IPv4!')
@@ -228,8 +227,8 @@ class ip:
         if (ip_headers["protocol"] != ip.PROTOCOL):
             raise Exception('IP: Invalid PROTOCOL!')
 
-        if (not ip.validate_header_checksum(ip_headers["checksum"], ip_headers)):
-            raise Exception('IP: Invalid CHECKSUM!')
+        # if (not ip.validate_header_checksum(ip_headers["checksum"], ip_headers)):
+        #     raise Exception('IP: Invalid CHECKSUM!')
         
         # Return the IP headers and Transport layer packet
         return ip_headers, tport_layer_packet
