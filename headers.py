@@ -3,6 +3,8 @@ from struct import pack, unpack
 from traceback import print_tb
 from typing import Optional
 
+from numpy import byte
+
 import utils
 
 
@@ -170,7 +172,7 @@ class ip:
     KEYS_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_len', 'frag_offset']
 
     @staticmethod
-    def pack_ip_fields(tport_layer_packet):
+    def pack_ip_fields(tport_layer_packet: bytes):
         '''
         Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
             param: tcp_packet - packet from the Transport layer and the payload
