@@ -12,7 +12,7 @@ class RawSocket:
 
         ''' Set of constant fields '''
         self.TIMEOUT = 60     # TCP Retransmission Timeout: 1 minute
-        self.BUFFER_SIZE = pow(2, 16) - 1    # MAX packet length
+        self.BUFFER_SIZE = 65535    # MAX packet length
         self.EMPTY_PAYLOAD = b''
         self.FORMAT = 'utf-8'
         
@@ -33,20 +33,17 @@ class RawSocket:
         ip.SRC_ADDRESS = socket.inet_aton(utils.get_localhost_addr())
         ip.DEST_ADDRESS = socket.inet_aton(socket.gethostbyname(self.host_url))
 
+        # Set the packet destination address
+        self.destination = (socket.gethostbyname(self.host_url), tcp.DEST_PORT)
+
         try:
             # Raw socket setup
             # Setup Sender side socket (To Server)
-            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
-            # Set the destination address
-            self.destination = (socket.gethostbyname(self.host_url), tcp.DEST_PORT)
+            self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
 
             # Setup Receiver side socket (To Localhost)
-            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-            # Set the localhost address
-            src_addr = utils.get_localhost_addr()
-            src_port = random.randint(1024, 65530) #utils.get_localhost_port(self.receiver_socket, src_addr)
-            source = (src_addr, src_port)
-            # ! How to receive data
+            self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+            # Set receiver socket timeout
             self.receiver_socket.settimeout(self.TIMEOUT)
 
         except socket.error as socket_error:
@@ -121,7 +118,7 @@ class RawSocket:
             # Receive Network layer packet from the server
             try:
                 net_layer_packet = self.receiver_socket.recv(self.BUFFER_SIZE)  # ! .recvfrom(buff)
-                print('Receiving!')
+                print('Received!')
 
             except socket.timeout:
                 print('Receive Timeout!')
