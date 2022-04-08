@@ -218,8 +218,9 @@ class ip:
 
         # Verify IP fields
         if (ip_headers["dest_addr"] != ip.SRC_ADDRESS):
-            print(ip_headers["dest_addr"], ip.SRC_ADDRESS)
             raise Exception('IP: Invalid Dest. IP ADDR!')
+        else:
+            print(ip_headers["dest_addr"], ip.SRC_ADDRESS)
 
         if (ip_headers["version"] != ip.VERSION):
             raise Exception('IP: Invalid NOT IPv4!')
@@ -243,6 +244,5 @@ class ip:
 
         checksum = utils.compute_header_checksum(temp_ip_header)
         print(checksum)
-        print(packet_checksum)
 
         return (checksum == packet_checksum)
