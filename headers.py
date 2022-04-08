@@ -238,5 +238,7 @@ class ip:
         )
 
         checksum = utils.compute_header_checksum(temp_ip_header)
+        print(checksum)
+        print(packet_checksum)
 
         return (checksum == packet_checksum)
