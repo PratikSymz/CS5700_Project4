@@ -99,7 +99,8 @@ class RawSocket:
             print('Sending packet to server!')
             try:
                 self.sender_socket.sendto(net_layer_packet, self.destination)
-            except socket.error:
+            except socket.error as socket_error:
+                print(socket_error)
                 sys.exit('Socket Send Error!')
 
     def receive_ack_packet(self, flags: int):
