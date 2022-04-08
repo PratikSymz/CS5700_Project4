@@ -46,7 +46,6 @@ class RawSocket:
             # Raw socket setup
             # Setup Sender side socket (To Server)
             self.sender_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_RAW)
-            self.sender_socket.connect(self.destination)
 
             # Setup Receiver side socket (To Localhost)
             self.receiver_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
@@ -254,8 +253,7 @@ class RawSocket:
             # Send packet from the Network layer to the server
             print('Sending packet to server!')
             try:
-                #self.sender_socket.sendto(net_layer_packet, self.destination)
-                self.sender_socket.send(net_layer_packet)
+                self.sender_socket.sendto(net_layer_packet, self.destination)
             except socket.error as socket_error:
                 print(socket_error)
                 sys.exit('Socket Send Error!')
