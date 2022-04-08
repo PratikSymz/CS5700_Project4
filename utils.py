@@ -217,7 +217,7 @@ def set_syn_bit(tcp_flags: dict):
         Returns: the modified TCP flags
     '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
-    tcp_flags["FLAG_TCP_SYN"] = 1
+    tcp_flags["FLAG_SYN"] = 1
 
     return tcp_flags
 
@@ -229,8 +229,8 @@ def set_syn_ack_bits(tcp_flags: dict):
         Returns: the modified TCP flags
     '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
-    tcp_flags["FLAG_TCP_SYN"] = 1
-    tcp_flags["FLAG_TCP_ACK"] = 1
+    tcp_flags["FLAG_SYN"] = 1
+    tcp_flags["FLAG_ACK"] = 1
 
     return tcp_flags
 
@@ -242,7 +242,7 @@ def set_ack_bit(tcp_flags: dict):
         Returns: the modified TCP flags
     '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
-    tcp_flags["FLAG_TCP_ACK"] = 1
+    tcp_flags["FLAG_ACK"] = 1
 
     return tcp_flags
 
@@ -254,8 +254,8 @@ def set_fin_ack_bits(tcp_flags: dict):
         Returns: the modified TCP flags
     '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
-    tcp_flags["FLAG_TCP_FIN"] = 1
-    tcp_flags["FLAG_TCP_ACK"] = 1
+    tcp_flags["FLAG_FIN"] = 1
+    tcp_flags["FLAG_ACK"] = 1
 
     return tcp_flags
 
@@ -267,6 +267,6 @@ def set_fin_bits(tcp_flags: dict):
         Returns: the modified TCP flags
     '''
     tcp_flags = tcp_flags.fromkeys(tcp_flags, 0)
-    tcp_flags["FLAG_TCP_FIN"] = 1
+    tcp_flags["FLAG_FIN"] = 1
 
     return tcp_flags
