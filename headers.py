@@ -1,9 +1,6 @@
 import random, socket
 from struct import pack, unpack
-from traceback import print_tb
 from typing import Optional
-
-from numpy import byte
 
 import utils
 
@@ -197,7 +194,7 @@ class ip:
         return net_layer_packet
 
     @staticmethod
-    def unpack_ip_fields(net_layer_packet):
+    def unpack_ip_fields(net_layer_packet: bytes):
         '''
         Helper method to unpack the IP fields from the transport layer packet.
             param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
