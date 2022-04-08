@@ -234,7 +234,7 @@ class ip:
         ''' Helper method to verify IP checksum '''
         temp_ip_header = pack(
             ip.HEADER_FORMAT,
-            ip_headers["vhl"], ip_headers["tos"], ip_headers["total_len"], ip_headers["id"], ip_headers["flags"], ip_headers["ttl"], ip_headers["protocol"], ip_headers["checksum"], ip_headers["src_addr"], ip_headers["dest_addr"]
+            ip_headers["vhl"], ip_headers["tos"], ip_headers["total_len"], ip_headers["id"], ip_headers["flags"], ip_headers["ttl"], ip_headers["protocol"], ip.DEFAULT_CHECKSUM, ip_headers["src_addr"], ip_headers["dest_addr"]
         )
 
         checksum = utils.compute_header_checksum(temp_ip_header)
