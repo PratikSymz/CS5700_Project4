@@ -203,6 +203,7 @@ class ip:
         '''
         ip_header_fields = unpack(ip.HEADER_FORMAT, net_layer_packet[ :20])
         ip_headers = dict(zip(ip.KEYS_FIELDS, ip_header_fields))
+        print(ip_headers)
 
         ip_headers["version"] = (ip_headers["vhl"] >> 4)
         ip_headers["header_len"] = (ip_headers["vhl"] & 0x0F)
@@ -230,7 +231,6 @@ class ip:
             raise Exception('IP: Invalid CHECKSUM!')
         
         # Return the IP headers and Transport layer packet
-        print(ip_headers)
         return ip_headers, tport_layer_packet
 
     @staticmethod
