@@ -4,6 +4,7 @@ import socket, sys, os, time, argparse, random
 import utils
 from headers import ip, tcp
 
+
 class RawSocket:
     def __init__(self):
         ''' Extract the argument url and destination hostname '''
@@ -15,6 +16,9 @@ class RawSocket:
         self.BUFFER_SIZE = 65535    # MAX packet length
         self.EMPTY_PAYLOAD = b''
         self.FORMAT = 'utf-8'
+        self.HTTP_STATUS_CODE = 200
+        self.SOURCE_CLIENT = 'client'
+        self.SOURCE_SERVER = 'server'
         
         ''' Constant field representing the default congestion window size '''
         self.CWND = 1
@@ -51,10 +55,159 @@ class RawSocket:
             print("Socket creation error: " + str(socket_error))
             sys.exit("Can't connect with socket! Timeout " + "\n")
 
+
+    def run(self):
+        '''
+            Function: 
+                run() - this method is responsible for firstly initiating the TCP three-way handshake. Next, it sends a 
+                GET request to the server. After that, it will manage the sequence numbers for all the packets it receives 
+                from the server, while maintaning the congestion control mechanism. It receives all packets and saves it 
+                in a dictionary. Lastly, it concatenates the payload in the correct order of sequence numbers and saves it 
+                in a file and closes the connection.
+            Parameters: none
+            Returns: none
+        '''
+        # Drop outgoing TCP RST packets
+        os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP")
+
+        # Extract the parameter url
+        arg_url = sys.argv[1]
+
+        # Initiate TCP handshake
+        self.init_tcp_handshake()
+
+        # Build the GET request 
+        url, host_url = utils.get_destination_url(arg_url)
+        request_payload = utils.build_GET_request(url, host_url).encode(self.FORMAT)
+
+        # Send the GET request to the server
+        self.send_packet(self.FLAG_ACK, request_payload)
+
+        # Payload sent, update SEQ_NUM
+        tcp.SEQ_NUM += len(request_payload)
+
+        # Maintain a TCP Segment dict to keep track of out of order packets
+        tcp_segments = {}
+
+        # Receive incoming packet information
+        ip_headers, tcp_headers, payload = {}, {}, self.EMPTY_PAYLOAD
+        while True:
+            # Receive Network layer packet
+            ip_headers, tcp_headers, payload = self.receive_ack_packet(self.FLAG_ACK)
+
+            # Parse TCP headers (flags) for FIN message
+            # TODO: Recheck logic for SERVER and CLIENT FIN separately
+            # FIN flag received from the Server - close connection and send FIN/ACK to the server
+            if (tcp_headers["flags"] & self.FLAG_FIN > 0):
+                # Once server FIN received, break from loop
+                tcp.SEQ_NUM = tcp_headers["ack_num"]
+                tcp.ACK_NUM = tcp_headers["seq_num"] + 1  # Do +1 to ACK the FIN flag
+                # Initiate connection shutdown through server request
+                self.close_connection(self.SOURCE_SERVER)
+                break
+            
+            # Packet transmitted from the server - handle all cases and update SEQ and ACK nums
+            if (tcp_headers["flags"] & self.FLAG_ACK > 0 and tcp_headers["seq_num"] not in tcp_segments and len(payload) > 0):
+                # Compare the Seq no. we're maintaining with the transmitted Ack no.
+                if (tcp.SEQ_NUM == tcp_headers["ack_num"]):    # and utils.TCP_ACK_NUM == tcp_headers["ack_num"]
+                    # Add payload for the specific SEQ_NUM
+                    tcp_segments[tcp_headers["seq_num"]] = payload
+                    # Update Sequence numbers
+                    tcp.SEQ_NUM = tcp_headers["ack_num"]
+                    tcp.ACK_NUM = tcp_headers["seq_num"] + len(payload)
+
+                    # Update the Client's advertized window
+                    tcp.ADV_WINDOW = tcp_headers["adv_window"]
+
+                    # Update congestion window
+                    self.CWND = utils.set_congestion_control(self.CWND, tcp.ADV_WINDOW)
+
+                    # Send ACK for the packet received and update ACK number of client
+                    self.send_packet(self.FLAG_ACK, self.EMPTY_PAYLOAD)
+
+                else:
+                    # Packet dropped - send ACK again
+                    self.CWND = utils.set_congestion_control(self.CWND, tcp.ADV_WINDOW, True)
+                    self.send_packet(self.FLAG_ACK, self.EMPTY_PAYLOAD)
+
+        # Sort the TCP segments based on SEQ_NUM and concatenate the payload
+        tcp_segments_inorder = sorted(tcp_segments.items())
+        appl_layer_packet = self.EMPTY_PAYLOAD
+
+        for _, data_segment in tcp_segments_inorder:
+            appl_layer_packet += data_segment
+
+        # Tear down connection after all data has been received
+        self.close_connection(self.SOURCE_CLIENT)
+
+        # Get response content
+        # ! check if content is correct
+        raw_headers, raw_body = utils.parse_response(appl_layer_packet.decode(self.FORMAT))
+        # Check HTTP Status Code from the raw HTML data
+        response_code = utils.get_response_code(raw_headers)
+
+        if (response_code == self.HTTP_STATUS_CODE):
+            headers = utils.parse_headers(raw_headers)
+
+            # Write content to file
+            filename = utils.get_filename(arg_url)
+            utils.write_to_file(filename, raw_body)
+        
+        else:
+            # Only handle 200 status code
+            print('HTTP Response: NOT OK!')
+            # Exit program
+            sys.exit('HTTP Error!')
+
+
+    def init_tcp_handshake(self):
+        '''
+            Function: 
+                init_tcp_handshake() - this method is responsible for initiating the TCP three-way handshake: SYN, SYN/ACK, ACK.
+                    The SEQ and ACK numbers are validated based on the handshake values. The first SYN bit is sent, next the 
+                    SYN/ACK is received and the sequence numbers are updated accordingly. Lastly, the ACK bit is sent to establish the connection.
+            Parameters: none
+            Returns: none
+        '''
+        # 1. Send packet from Network layer with TCP SYN = 1 and payload as Null: SYN<1, 0> bit 1
+        self.send_packet(self.FLAG_SYN, self.EMPTY_PAYLOAD)
+        print('TCP Handshake Initiated!')
+        
+        # Receive incoming packet information
+        ip_headers, tcp_headers, payload = self.receive_ack_packet(self.FLAG_SYN)
+
+        # Update the Client's advertized window
+        tcp.ADV_WINDOW = tcp_headers["adv_window"]
+
+        # Send final ACK and finish handshake
+        # At end of SYN/ACK <1S, 2C>
+        if (tcp_headers["seq_num"] == tcp_headers["ack_num"] - 1):
+            # Complete handshake procedure
+            # ACK received for Client side, update SEQ_NUM and send ACK to Server
+            # utils.TCP_SEQ_NUM += 1
+            tcp.SEQ_NUM = tcp_headers["ack_num"]
+
+            # Update ACK for Server side
+            tcp.ACK_NUM = tcp_headers["seq_num"]
+
+            # Set TCP flags for final ACK message (for Server)
+            FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(tcp.FLAGS))
+
+            # Send final handshake message
+            tcp.ACK_NUM += 1
+            print('Sending Final Handshake!')
+            self.send_packet(FLAG_ACK, self.EMPTY_PAYLOAD)
+            print('Handshake complete!')
+
+        else:
+            self.close_connection(self.SOURCE_CLIENT)
+            sys.exit("3-Way Handshake failed!!!" + "\n")
+
+
     def send_packet(self, flags: int, payload: bytes):
         '''
             Function: 
-                send_packet - this method is responsible for sending Network layer packets to the project server. It segments the payload into 
+                send_packet() - this method is responsible for sending Network layer packets to the project server. It segments the payload into 
                     chunks of size dependent on the congestion window. Each chunk is wrapped in TCP and IP headers and sent to the 
                     project server until all segments have been transferred.
             Parameters:
@@ -103,10 +256,11 @@ class RawSocket:
                 print(socket_error)
                 sys.exit('Socket Send Error!')
 
+
     def receive_ack_packet(self, flags: int):
         '''
             Function: 
-                receive_ack_packet - this method is responsible for receiving Network layer packets with the ACK bit set from the project server.
+                receive_ack_packet() - this method is responsible for receiving Network layer packets with the ACK bit set from the project server.
                     Furthermore, if the receiver socket timeouts, it enters retrasmission mode, where it retransmits upto three times. 
                     Once, the retransmission counter is over, it stops and exits.
             Parameters:
@@ -135,7 +289,7 @@ class RawSocket:
                     continue
 
                 else:
-                    self.close_connection('CLIENT')
+                    self.close_connection(self.SOURCE_CLIENT)
                     sys.exit('TCP Handshake failed!')
 
             # Parse Network layer packet
@@ -165,146 +319,30 @@ class RawSocket:
 
         return ip_headers, tcp_headers, payload
 
-    def init_tcp_handshake(self):
-        ''' Helper method to initiate the TCP three-way handshake: SYN, SYN/ACK, ACK '''
-        '''
-            Function: 
-                receive_ack_packet - this method is responsible for receiving Network layer packets with the ACK bit set from the project server.
-                    Furthermore, if the receiver socket timeouts, it enters retrasmission mode, where it retransmits upto three times. 
-                    Once, the retransmission counter is over, it stops and exits.
-            Parameters:
-                flags - the TCP flags to expect in an ACK packet
-            Returns: the IP headers, TCP headers and the packet payload
-        '''
-
-        # 1. Send packet from Network layer with TCP SYN = 1 and payload as Null: SYN<1, 0> bit 1
-        self.send_packet(self.FLAG_SYN, self.EMPTY_PAYLOAD)
-        print('TCP Handshake Initiated!')
-        
-        # Receive incoming packet information
-        ip_headers, tcp_headers, payload = self.receive_ack_packet(self.FLAG_SYN)
-
-        # Update the Client's advertized window
-        tcp.ADV_WINDOW = tcp_headers["adv_window"]
-
-        # Send final ACK and finish handshake
-        # At end of SYN/ACK <1S, 2C>
-        if (tcp_headers["seq_num"] == tcp_headers["ack_num"] - 1):
-            # Complete handshake procedure
-            # ACK received for Client side, update SEQ_NUM and send ACK to Server
-            # utils.TCP_SEQ_NUM += 1
-            tcp.SEQ_NUM = tcp_headers["ack_num"]
-
-            # Update ACK for Server side
-            tcp.ACK_NUM = tcp_headers["seq_num"]
-
-            # Set TCP flags for final ACK message (for Server)
-            FLAG_ACK = utils.concat_tcp_flags(utils.set_ack_bit(tcp.FLAGS))
-
-            # Send final handshake message
-            tcp.ACK_NUM += 1
-            print('Sending Final Handshake!')
-            self.send_packet(FLAG_ACK, self.EMPTY_PAYLOAD)
-            print('Handshake complete!')
-
-        else:
-            self.close_connection('CLIENT')
-            sys.exit("3-Way Handshake failed!!!" + "\n")
 
     def close_connection(self, source: str):
-        ''' Helper method to close connection with the server based on TCP flags '''
-        if (source == 'SERVER'):
-            print('Server-side closed!')
+        '''
+            Function: 
+                close_connection() - this method is responsible for tearing down the connection. The connection is closed based on the source parameter.
+                    If the source is the SERVER, i.e., the server has initiated the connection teardown and has send a packet with the FIN flag, the program 
+                    sends a FIN_ACK and closes the connection.
+                    However, if the source is CLIENT, which means that the client has received all data and has to tear down the connection. In this case, we 
+                    first send a packet with the FIN/ACK bits set to the server, the server responds with a FIN/ACK and finally, we send the ACK packet to 
+                    acknowledge the FIN of the server and the connection is terminated.
+            Parameters: 
+                source - the source initiating the connection teardown request (Client or Server)
+            Returns: none
+        '''
+        if (source == self.SOURCE_SERVER):
+            print('Server-side shutdown!')
             self.send_packet(self.FLAG_FIN_ACK, self.EMPTY_PAYLOAD)
         
-        if (source == 'CLIENT'):
+        if (source == self.SOURCE_CLIENT):
             print('Client-side shutdown!')
             self.send_packet(self.FLAG_FIN_ACK, self.EMPTY_PAYLOAD)
             self.receive_ack_packet(self.FLAG_FIN_ACK)
             self.send_packet(self.FLAG_ACK, self.EMPTY_PAYLOAD)
 
-    def run(self):
-        # Drop outgoing TCP RST packets
-        os.system("iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP")
-
-        arg_url = sys.argv[1]
-
-        # Start TCP handshake
-        self.init_tcp_handshake()
-
-        # Send get request for webpage
-        url, host_url = utils.get_destination_url(arg_url)
-        request_payload = utils.build_GET_request(url, host_url).encode(self.FORMAT)
-
-        # Send the GET request to the server
-        self.send_packet(self.FLAG_ACK, request_payload)
-
-        # Payload sent, update SEQ_NUM
-        tcp.SEQ_NUM += len(request_payload)
-
-        # Maintain a TCP Segment dict to keep track of out of order packets
-        tcp_segments = {}
-
-        # Receive incoming packet information
-        ip_headers, tcp_headers, payload = {}, {}, self.EMPTY_PAYLOAD
-        while True:
-            # Receive Network layer packet
-            ip_headers, tcp_headers, payload = self.receive_ack_packet(self.FLAG_ACK)
-
-            # Parse TCP headers (flags) for FIN message
-            # TODO: Recheck logic for SERVER and CLIENT FIN separately
-            # FIN flag received from the Server - close connection and send FIN/ACK to the server
-            if (tcp_headers["flags"] & self.FLAG_FIN > 0):
-                # Once server FIN received, break from loop
-                tcp.SEQ_NUM = tcp_headers["ack_num"]
-                tcp.ACK_NUM = tcp_headers["seq_num"] + 1  # Do +1 to ACK the FIN flag
-                self.close_connection('SERVER')
-                break
-            
-            # Packet transmitted from the server - handle all cases and update SEQ and ACK nums
-            if (tcp_headers["flags"] & self.FLAG_ACK > 0 and tcp_headers["seq_num"] not in tcp_segments and len(payload) > 0):
-                # Compare the Seq no. we're maintaining with the transmitted Ack no.
-                if (tcp.SEQ_NUM == tcp_headers["ack_num"]):    # and utils.TCP_ACK_NUM == tcp_headers["ack_num"]
-                    # Add payload for the specific SEQ_NUM
-                    tcp_segments[tcp_headers["seq_num"]] = payload
-                    # Update Sequence numbers
-                    tcp.SEQ_NUM = tcp_headers["ack_num"]
-                    tcp.ACK_NUM = tcp_headers["seq_num"] + len(payload)
-
-                    # Update the Client's advertized window
-                    tcp.ADV_WINDOW = tcp_headers["adv_window"]
-
-                    # Update congestion window
-                    self.CWND = utils.set_congestion_control(self.CWND, tcp.ADV_WINDOW)
-
-                    # Send ACK for the packet received and update ACK number of client
-                    self.send_packet(self.FLAG_ACK, self.EMPTY_PAYLOAD)
-
-                else:
-                    # Packet dropped - send ACK again
-                    self.CWND = utils.set_congestion_control(self.CWND, tcp.ADV_WINDOW, True)
-                    self.send_packet(self.FLAG_ACK, self.EMPTY_PAYLOAD)
-
-        # Sort the TCP segments based on SEQ_NUM and concatenate the payload
-        tcp_segments_inorder = sorted(tcp_segments.items())
-        appl_layer_packet = self.EMPTY_PAYLOAD
-
-        for _, data_segment in tcp_segments_inorder:
-            appl_layer_packet += data_segment
-
-        # Get file path name
-        # file_path = utils.get_filepath(arg_url)
-        # Get response content
-        # TODO check if content is correct
-        raw_headers, raw_body = utils.parse_response(appl_layer_packet.decode(self.FORMAT))
-        headers = utils.parse_headers(raw_headers)
-
-        # Write content to file
-        filename = utils.get_filename(arg_url)
-        utils.write_to_file(filename, raw_body)
-
-        # Close socket connections
-        self.close_connection('CLIENT')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

@@ -1,9 +1,6 @@
 import random, socket
 
 
-''' Set of constant fields '''
-HTTP_STATUS_CODE = 200
-
 ''' Set of constant fields for HTTP connection '''
 HTTP_VERSION = 'HTTP/1.1'
 HOST_NAME_HEADER = 'Host: '
@@ -106,23 +103,6 @@ def get_destination_url(arg_url: str):
 
     return url, host_url
 
-def get_filename(url_path: str):
-    '''
-        Function: get_filename - extracts the filename from the given url path
-        Parameters: 
-            url_path - the argument url from the script input
-        Returns: the filename string to be used to write content to
-    '''
-    file_name = ''
-    split_path = url_path.split('/')
-
-    if (split_path[-1] == '' or split_path[-1].count('.') > 1):
-        file_name = 'index.html'
-    else:
-        file_name = split_path[-1]
-
-    return file_name
-
 def build_GET_request(url: str, host_url: str):
     '''
         Function: build_GET_request - builds the HTTP GET request using the argument url
@@ -174,6 +154,38 @@ def parse_headers(raw_headers: str):
             headers[header[0]] = header[1]
     
     return headers
+
+""" Helper method to retrieve response code from raw HTTP header information """
+def get_response_code(raw_headers):
+    '''
+        Function: get_response_code() - parse the raw HTTP headers to extract the HTTP status code
+        Parameters: 
+            raw_headers - the raw http headers
+        Returns: the HTTP Response code
+    '''
+    # Default code: Server Error - try again
+    response_code = 500
+    if (len(raw_headers) > 0):
+        response_code = int(raw_headers.splitlines()[0].split()[1])
+    
+    return response_code
+
+def get_filename(url_path: str):
+    '''
+        Function: get_filename - extracts the filename from the given url path
+        Parameters: 
+            url_path - the argument url from the script input
+        Returns: the filename string to be used to write content to
+    '''
+    file_name = ''
+    split_path = url_path.split('/')
+
+    if (split_path[-1] == '' or split_path[-1].count('.') > 1):
+        file_name = 'index.html'
+    else:
+        file_name = split_path[-1]
+
+    return file_name
 
 # ! check if correct content written
 def write_to_file(file_name: str, content: str):
