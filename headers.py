@@ -91,15 +91,14 @@ class tcp:
             2. return: a key-value table of the fields of the TCP header and the payload
         '''
         # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
-        # tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
-        tcp_header_fields = unpack('!HHLLBBH', tport_layer_packet[0:16]) + unpack('H', tport_layer_packet[16:18]) + unpack('!H', tport_layer_packet[18:20])
+        tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
         tcp_headers = dict(zip(tcp.KEYS_FIELDS, tcp_header_fields))
-        print(tcp_headers)
+        print("Packet: ", tport_layer_packet.hex(' '))
+        print("Unpacked: ", tcp_header_fields)
 
         # Validate: if packet is headed towards the correct destination port
         # No need to verify TCP fields - return
         if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
-            print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
             #raise Exception('TCP: Invalid Dest. PORT!')
             return False
 
