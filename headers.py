@@ -16,8 +16,8 @@ class tcp:
     DEFAULT_CHECKSUM = 0
     URGENT_PTR = 0
     MSS = 1460
-    #OPTIONS = b''
-
+    OPTIONS = b''
+    
     # SOURCE_PORT = 50871
     # DEST_PORT = 80
     # SEQ_NUM = 2753993875
@@ -60,7 +60,7 @@ class tcp:
         temp_tcp_header = pack(
             tcp.HEADER_FORMAT,
             tcp.SOURCE_PORT, tcp.DEST_PORT, tcp.SEQ_NUM, tcp.ACK_NUM, tcp.DATA_OFFSET << 4, flags, tcp.ADV_WINDOW, tcp.DEFAULT_CHECKSUM, tcp.URGENT_PTR
-        ) # + tcp.OPTIONS
+        ) + tcp.OPTIONS
 
         tcp_segment_length = len(temp_tcp_header) + len(payload)
 
@@ -79,7 +79,7 @@ class tcp:
             tcp.SOURCE_PORT, tcp.DEST_PORT, tcp.SEQ_NUM, tcp.ACK_NUM, tcp.DATA_OFFSET << 4, flags, tcp.ADV_WINDOW, checksum, tcp.URGENT_PTR
         )
 
-        tport_layer_packet = tcp_header + payload   # + tcp.OPTIONS
+        tport_layer_packet = tcp_header + tcp.OPTIONS + payload
         
         return tport_layer_packet
 
@@ -104,9 +104,9 @@ class tcp:
         # 1. Shift offset 4 bits from data offset field and get no. of words value
         tcp.DATA_OFFSET = tcp_headers["data_offset"] >> 4
 
-        # # If this offset is = 5 words means that Options and Padding fields are empty, so..
+        # If this offset is = 5 words means that Options and Padding fields are empty, so..
         # if (tcp.DATA_OFFSET > 5):    # There are options [0...40B max]
-        #     tcp.OPTIONS = tport_layer_packet[20 : 24]
+        #     tcp.OPTIONS = tport_layer_packet[20 : 4 * tcp.DATA_OFFSET]
         #     tcp.MSS = unpack('!H', tcp.OPTIONS[0:4][2: ])[0]
 
         payload = tport_layer_packet[4 * tcp.DATA_OFFSET: ]
@@ -124,7 +124,7 @@ class tcp:
         temp_tcp_header = pack(
             tcp.HEADER_FORMAT, 
             tcp_fields["src_port"], tcp_fields["dest_port"], tcp_fields["seq_num"], tcp_fields["ack_num"], tcp_fields["data_offset"], tcp_fields["flags"], tcp_fields["adv_window"], tcp.DEFAULT_CHECKSUM, tcp_fields["urgent_ptr"]
-        )  # TCP Options wasn't unpacked hence, no need to be packed again
+        ) # + tcp_options  # TCP Options wasn't unpacked hence, no need to be packed again
 
         # TODO: Check if during Checksum verification, should it be set to 0 or the actual value
         tcp_segment_length = len(tport_layer_packet)    # Already contains payload
