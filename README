@@ -1,0 +1,126 @@
+#README
+
+CS 5700 Project 4 Raw Sockets
+======================================================================
+Team Name: amp
+Team Member: 
+			Pratik Budhiraja (NUID: 002105546)
+			Marwa Elali (NUID: 001527297)
+			Haojun Zhu (NUID: 002979116)
+
+======================================================================
+This project is implemented using Python programming language
+
+To run the program with following commands with user has privileged:
+	sudo chmod +x rawhttpget
+	sudo ./rawhttpget URL
+
+======================================================================
+High-level Approach
+
+	- Divide the process into three layers: Application layer, Transportation layer and Network layer as in the Open Syetems
+	Interconnection Model.
+	- The application layer obtaining the URL argument provided by
+	user from the command line. The URL will be parsed to provide
+	path and destination filename.
+	- With source IP address of client and destination IP address of server create sending and recieving sockets.
+	- Build the TCP and IP headers after sockets created
+	- Following three way handshake to make a connection before
+	sending anything
+	- After packing process shown below, the program will send the
+	final IP datagram to corresponding remote host
+	
+	[Payload] -> (tcp pack) -> TCP Segment[TCP Header, Payload] 
+	-> (ip pack) -> IP Datagram [IP Header, TCP Header, Payload]
+
+	- The program will monitor and filter the packets received, and
+	unpack the IP Datagram and check the validity layer by layer, while
+	keep buffer for each data and sort the data according to TCP seq#
+
+	IP Datagram [IP Header, TCP Header, Data] -> (ip unpack) ->
+	TCP Segment[TCP Header, Data] -> (tcp unpack) -> [Data]
+
+======================================================================
+Features Implemented
+
+ 	= Features of IP packets
+ 		- Validating the checksums of incomming packets
+ 		- Setting the correct version, header length and total length,
+ 		protocol identifier, and checksum in each outgoing packet.
+ 		- Correctly set the source and destination IP in each outgoing packet.
+
+ 	= Features of TCP packets
+ 		- Verify the checksums of incomming TCP packets
+ 		- Generate correct checksums for outgoing packets
+ 		- Select a valid local port to send traffic on
+ 		- Perform the three-way handshake
+ 		- Correctly handle connection teardown
+ 		- Correctly handle sequence and acknowledgement numbers
+ 		- Manage the advertised window as fit
+ 		- Include basic timeout functionality
+ 		- Put out-of-order incoming packets back into the correct order
+ 		- Identify and discard duplicate packets.
+ 		- Implement a basic congestion window
+
+======================================================================
+Challenges Faced (# need more details ? #)
+
+- The first challenge we faced was testing our code on Ubuntu Linux VM,
+we keep getting the error operation not permitted when socket sending 
+packets even as root user. First we thought it was because the file has the 
+immutable flag set in its extended attributes, however after we tried
+to fix this with 'sudo chattr -f filename', we are still getting the same
+error. We have posted the question on piazza and finally there was something 
+wrong with the socket set up and raw socket sendto()
+
+- The second challenge we faced was the implementation of checksum 
+algorithm and the bitwise manipulation when compute checksum for either
+sending packet or verify the packet.
+
+- The third challenge was implementing the three way hanshake for TCP
+packets.
+
+- The fourth challenge was implementing the filter to assure we only
+receive the packet belong to our program
+
+- Next challenge we faced was junk data in the file that being written
+
+- The last one was actually testing with wireshark
+
+======================================================================
+Overview on Testing (# need more details ? #)
+
+We implement and test the program increamantally that we test each our module 
+to make sure its functionality before combine together.
+
+======================================================================
+Work Contribution (need further discuss and decisioin)
+
+Pratik Budhiraja : all the function in class TCP,
+Marwa Elali : all the function in class IP,
+Haojun Zhu : adapted functionality of HTTP from project 2
+
+======================================================================
+File Design
+
+= headers.py 
+	- module include class tcp and class ip
+	- used for easily pack and unpack tcp segment and ip datagram
+	- also include the function that validate checksum
+
+= rawhttpget.py
+	- Main driver of the raw socket program include the function to
+	initiate three way handshake, sending & receving process, and close
+	connection with server.
+
+= test.py
+	- set up for module testing, changing all the time but will not affect
+	the main program
+
+= utils.py
+	- include all the utilities function such as compute checksum, all the
+	parser either for URL, http header, etc. , filename parser and other 
+	function for saving the file to local, also function that shift/deshift 
+	flags to corresponding bitwise locations is included in this file.
+
+======================================================================
