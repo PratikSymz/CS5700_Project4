@@ -23,7 +23,7 @@ class tcp:
     # SEQ_NUM = 2753993875
     # ACK_NUM = 0
     # DATA_OFFSET = 11  # (No. of words = No. of rows). Offset to show after where the data starts.
-    # ADV_WINDOW = 65535  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
+    # ADV_WINDOW = socket.htons(65535)  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
     # DEFAULT_CHECKSUM = 0
     # URGENT_PTR = 0
     # MSS = 1460  #536
@@ -72,7 +72,7 @@ class tcp:
         # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
         check = pseudo_ip_header + temp_tcp_header + payload
         checksum = utils.compute_header_checksum(check)  # ! payload.encode(FORMAT)
-        print('TCP Checksum: ', hex(checksum))
+        #print('TCP Checksum: ', hex(checksum))
 
         # Repack TCP header
         tcp_header = pack(
@@ -80,11 +80,11 @@ class tcp:
             tcp.SOURCE_PORT, tcp.DEST_PORT, tcp.SEQ_NUM, tcp.ACK_NUM, tcp.DATA_OFFSET << 4, flags, tcp.ADV_WINDOW, checksum, tcp.URGENT_PTR
         )
 
-        tport_layer_packet = tcp_header
-        # ! Check if needed - just add the Options - Default: b''
-        if (len(tcp.OPTIONS) > 0):
-            tport_layer_packet += tcp.OPTIONS
-        tport_layer_packet += payload  # ! payload.encode(FORMAT)
+        tport_layer_packet = tcp_header + tcp.OPTIONS + payload
+        # # ! Check if needed - just add the Options - Default: b''
+        # if (len(tcp.OPTIONS) > 0):
+        #     tport_layer_packet += tcp.OPTIONS
+        # tport_layer_packet += payload  # ! payload.encode(FORMAT)
         
         return tport_layer_packet
 
@@ -112,7 +112,7 @@ class tcp:
         payload = tport_layer_packet[4 * tcp.DATA_OFFSET: ]
 
         # Validate: if packet is headed towards the correct destination port
-        print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
+        #print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
         if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
             raise Exception('TCP: Invalid Dest. PORT!')
 
@@ -146,33 +146,33 @@ class tcp:
 class ip:
     ''' IP Header fields '''
     # Convert IP addr dotted-quad string into 32 bit binary format
-    VERSION = 4
-    HEADER_LEN = 5
-    TOS = 0
-    DGRAM_LEN = 20     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
-    ID = 0
-    TTL = 255
-    PROTOCOL = socket.IPPROTO_TCP
-    DEFAULT_CHECKSUM = 0
-    SRC_ADDRESS: Optional[bytes] = None
-    DEST_ADDRESS: Optional[bytes] = None
-    PADDING = 0
-    VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
-    OPTIONS = b''
-
     # VERSION = 4
     # HEADER_LEN = 5
     # TOS = 0
     # DGRAM_LEN = 20     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
     # ID = 0
-    # TTL = 64
+    # TTL = 255
     # PROTOCOL = socket.IPPROTO_TCP
     # DEFAULT_CHECKSUM = 0
-    # SRC_ADDRESS = bytes.fromhex('0a6ed06a') # socket.inet_aton('10.110.208.106')
-    # DEST_ADDRESS = bytes.fromhex('cc2cc03c') # socket.inet_aton('204.44.192.60')
+    # SRC_ADDRESS: Optional[bytes] = None
+    # DEST_ADDRESS: Optional[bytes] = None
     # PADDING = 0
     # VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
     # OPTIONS = b''
+
+    VERSION = 4
+    HEADER_LEN = 5
+    TOS = 0
+    DGRAM_LEN = 20     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
+    ID = 0
+    TTL = 64
+    PROTOCOL = socket.IPPROTO_TCP
+    DEFAULT_CHECKSUM = 0
+    SRC_ADDRESS = bytes.fromhex('0a6ed06a') # socket.inet_aton('10.110.208.106')
+    DEST_ADDRESS = bytes.fromhex('cc2cc03c') # socket.inet_aton('204.44.192.60')
+    PADDING = 0
+    VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
+    OPTIONS = b''
     
     ''' IP Flags '''
     FLAG_RSV = 0
@@ -203,7 +203,7 @@ class ip:
         )
 
         checksum = utils.compute_header_checksum(temp_ip_header)
-        print('IP Checksum: ', hex(checksum))
+        #print('IP Checksum: ', hex(checksum))
 
         # Repack IP Header with the checksum
         net_layer_packet = pack(
@@ -223,6 +223,11 @@ class ip:
         ip_header_fields = unpack(ip.HEADER_FORMAT, net_layer_packet[ :20])
         ip_headers = dict(zip(ip.KEYS_FIELDS, ip_header_fields))
         print(ip_headers)
+
+        # Only want to process packets from the project server
+        # No need to verify IP fields - return
+        if (ip_headers["src_addr"] != ip.DEST_ADDRESS):
+            return False
 
         ip_headers["version"] = (ip_headers["vhl"] >> 4)
         ip_headers["header_len"] = (ip_headers["vhl"] & 0x0F)
@@ -246,8 +251,8 @@ class ip:
         if (ip_headers["protocol"] != ip.PROTOCOL):
             raise Exception('IP: Invalid PROTOCOL!')
 
-        # if (not ip.validate_header_checksum(ip_headers["checksum"], ip_headers)):
-        #     raise Exception('IP: Invalid CHECKSUM!')
+        if (not ip.validate_header_checksum(ip_headers["checksum"], ip_headers)):
+            raise Exception('IP: Invalid CHECKSUM!')
         
         # Return the IP headers and Transport layer packet
         return ip_headers, tport_layer_packet

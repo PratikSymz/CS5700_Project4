@@ -296,7 +296,14 @@ class RawSocket:
 
             # Parse Network layer packet
             try:
-                ip_headers, tport_layer_packet = ip.unpack_ip_fields(net_layer_packet)
+                # ! Test this
+                # Packet received is not from the project server
+                if (isinstance(ip.unpack_ip_fields(net_layer_packet), bool)):
+                    print('Irrelevant Packet received!')
+                    continue
+                
+                ip_headers, tport_layer_packet = ip.unpack_ip_fields(net_layer_packet)  # type: ignore
+
                 print('Packet received!')
                 print('Parsing IP!')
 
