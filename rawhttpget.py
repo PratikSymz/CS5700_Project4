@@ -276,7 +276,6 @@ class RawSocket:
             # Receive Network layer packet from the server
             try:
                 net_layer_packet = self.receiver_socket.recv(self.BUFFER_SIZE)  # ! .recvfrom(buff)
-                print('Received!')
 
             except socket.timeout:
                 print('Receive Timeout!')
@@ -302,10 +301,8 @@ class RawSocket:
                 if (isinstance(ip.unpack_ip_fields(net_layer_packet), bool)):
                     continue
                 
-                ip_headers, tport_layer_packet = ip.unpack_ip_fields(net_layer_packet)  # type: ignore
-
-                print('Packet received!')
                 print('Parsing IP!')
+                ip_headers, tport_layer_packet = ip.unpack_ip_fields(net_layer_packet)  # type: ignore
 
             except socket.error as socket_error:
                 print("Invalid IP packet: " + str(socket_error))
@@ -318,8 +315,8 @@ class RawSocket:
                 if (isinstance(tcp.unpack_tcp_fields(tport_layer_packet), bool)):
                     continue
 
-                tcp_headers, payload = tcp.unpack_tcp_fields(tport_layer_packet)  # type: ignore
                 print('Parsing TCP!')
+                tcp_headers, payload = tcp.unpack_tcp_fields(tport_layer_packet)  # type: ignore
 
             except socket.error as socket_error:
                 print("Invalid TCP packet: " + str(socket_error))
