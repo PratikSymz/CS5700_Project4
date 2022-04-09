@@ -300,7 +300,6 @@ class RawSocket:
                 # ! Test this
                 # Packet received is not from the project server
                 if (isinstance(ip.unpack_ip_fields(net_layer_packet), bool)):
-                    print('IP: Irrelevant Packet received!')
                     continue
                 
                 ip_headers, tport_layer_packet = ip.unpack_ip_fields(net_layer_packet)  # type: ignore
@@ -317,7 +316,6 @@ class RawSocket:
                 # ! Test this as well
                 # Packet received is not from the correct port no.
                 if (isinstance(tcp.unpack_tcp_fields(tport_layer_packet), bool)):
-                    print('TCP: Irrelevant Packet received!')
                     continue
 
                 tcp_headers, payload = tcp.unpack_tcp_fields(tport_layer_packet)  # type: ignore
