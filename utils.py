@@ -1,31 +1,36 @@
 import random, socket
+from tabnanny import check
+from unittest import result
 
 
 ''' Set of constant fields for HTTP connection '''
 HTTP_VERSION = 'HTTP/1.1'
 HOST_NAME_HEADER = 'Host: '
 
-def compute_header_checksum(msg: bytes):
+def compute_header_checksum(header_data: bytes):
     '''
         Function: compute_header_checksum - computes the header checksum for TCP/IP headers to send to the server
         Parameters:
             header_data - header information in bytes
         Returns: the header checksum value in bytes
     '''
-    s = 0
+    ''' Reference: http://en.wikipedia.org/wiki/IPv4_header_checksum '''
+    checksum = 0
 
-    # Loop taking two characters at a time and adding blocks of bytes
-    for i in range(0, len(msg), 2):
-        w = msg[i] + (msg[i + 1] << 8)
-        s = s + w
+    # Sum up 2 words at a time (16 bits)
+    for i in range(0, len(header_data), 2):
+        # Sum the ordinal of each word and the network bits order
+        if (i == len(header_data) - 1):
+            checksum += header_data[i]
+        else:
+            checksum += header_data[i] + (header_data[i + 1] << 8)
 
-    # Compute 1's complement
-    s = (s >> 16) + (s & 0xffff)
-    s = s + (s >> 16)
-    
-    # Complement checksum and mask it to 4 byte short
-    s = ~s & 0xffff
-    return s
+    carry = (checksum & 0xffff) + (checksum >> 16)
+    result = (~carry) & 0xffff
+
+    # Interchange the bytes
+    result = (result >> 8) | ((result & 0x00ff) << 8)
+    return result
 
 def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
     '''
