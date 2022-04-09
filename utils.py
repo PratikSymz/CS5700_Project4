@@ -17,7 +17,7 @@ def compute_header_checksum(msg):
 
     # Loop taking two characters at a time and adding blocks of bytes
     for i in range(0, len(msg), 2):
-        w = msg[i] + ((msg[i + 1]) << 8)
+        w = msg[i] + (msg[i + 1] << 8)
         s = s + w
 
     # Compute 1's complement

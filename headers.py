@@ -7,27 +7,27 @@ import utils
 
 class tcp:
     ''' TCP Header fields '''
-    # SOURCE_PORT = 38708
-    # DEST_PORT = 80
-    # SEQ_NUM = random.randint(0, pow(2, 32) - 1)
-    # ACK_NUM = 0
-    # DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where the data starts.
-    # ADV_WINDOW = 5840  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
-    # DEFAULT_CHECKSUM = 0
-    # URGENT_PTR = 0
-    # MSS = 1386  #536
-    # OPTIONS = b''
-
     SOURCE_PORT = 50871
     DEST_PORT = 80
-    SEQ_NUM = 2753993875
+    SEQ_NUM = random.randint(0, pow(2, 32) - 1)
     ACK_NUM = 0
-    DATA_OFFSET = 11  # (No. of words = No. of rows). Offset to show after where the data starts.
+    DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where the data starts.
     ADV_WINDOW = 65535  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
     DEFAULT_CHECKSUM = 0
     URGENT_PTR = 0
-    MSS = 1460  #536
-    OPTIONS = bytes.fromhex('020405b4010303060101080abb6879f80000000004020000')
+    MSS = 1500  #536
+    OPTIONS = b''
+
+    # SOURCE_PORT = 50871
+    # DEST_PORT = 80
+    # SEQ_NUM = 2753993875
+    # ACK_NUM = 0
+    # DATA_OFFSET = 11  # (No. of words = No. of rows). Offset to show after where the data starts.
+    # ADV_WINDOW = 65535  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
+    # DEFAULT_CHECKSUM = 0
+    # URGENT_PTR = 0
+    # MSS = 1460  #536
+    # OPTIONS = bytes.fromhex('020405b4010303060101080abb6879f80000000004020000')
 
     ''' 
     TCP Flags
@@ -38,8 +38,7 @@ class tcp:
         5. Acknowledgement: FLAG_ACK, 
         6. Urgent: FLAG_URG
     '''
-    FLAGS = {"FLAG_FIN": 0, "FLAG_SYN": 1, "FLAG_RST": 0, "FLAG_PSH": 0, "FLAG_ACK": 0, "FLAG_URG": 0}
-    flags = utils.concat_tcp_flags(FLAGS)
+    FLAGS = {"FLAG_FIN": 0, "FLAG_SYN": 0, "FLAG_RST": 0, "FLAG_PSH": 0, "FLAG_ACK": 0, "FLAG_URG": 0}
 
     ''' Header formats '''
     HEADER_FORMAT = '!HHLLBBHHH'
@@ -65,32 +64,24 @@ class tcp:
 
         tcp_segment_length = len(temp_tcp_header) + len(payload)
 
-        ''' Checksum of the TCP is calculated by taking into account TCP header, TCP body and Pseudo IP header
-            * Cannot correctly guess the IP header size from Transport layer
-            * Calculate checksum using part of the IP header info that will remain unchanged in every packet
-            * Pseudo IP Header fields (in order):
-                1. IP of Source and Destination
-                2. Padding/Placeholder (8 bits)
-                3. Protocol (type of protocol)
-                4. TCP/UDP Segment length
-            * Only used for TCP Checksum calculation, discarded later and not sent to the Network layer
-        '''
         pseudo_ip_header = pack(
             ip.PSEUDO_HEADER_FORMAT,
             ip.SRC_ADDRESS, ip.DEST_ADDRESS, ip.PADDING, ip.PROTOCOL, tcp_segment_length
         )
 
         # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
-        checksum = utils.compute_header_checksum(pseudo_ip_header + temp_tcp_header + payload)  # ! payload.encode(FORMAT)
+        check = pseudo_ip_header + temp_tcp_header + payload
+        checksum = utils.compute_header_checksum(check)  # ! payload.encode(FORMAT)
         print('TCP Checksum: ', hex(checksum))
 
         # Repack TCP header
         tcp_header = pack(
             tcp.HEADER_FORMAT,
             tcp.SOURCE_PORT, tcp.DEST_PORT, tcp.SEQ_NUM, tcp.ACK_NUM, tcp.DATA_OFFSET << 4, flags, tcp.ADV_WINDOW, checksum, tcp.URGENT_PTR
-        ) # prev change: + pack('H', checksum) + pack('!H', TCP_URGENT_PTR)
+        )
 
         tport_layer_packet = tcp_header
+        # ! Check if needed - just add the Options - Default: b''
         if (len(tcp.OPTIONS) > 0):
             tport_layer_packet += tcp.OPTIONS
         tport_layer_packet += payload  # ! payload.encode(FORMAT)
@@ -155,33 +146,33 @@ class tcp:
 class ip:
     ''' IP Header fields '''
     # Convert IP addr dotted-quad string into 32 bit binary format
-    # VERSION = 4
-    # HEADER_LEN = 5
-    # TOS = 0
-    # DGRAM_LEN = 20     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
-    # ID = 0
-    # TTL = 255
-    # PROTOCOL = socket.IPPROTO_TCP
-    # DEFAULT_CHECKSUM = 0
-    # SRC_ADDRESS: Optional[bytes] = None
-    # DEST_ADDRESS: Optional[bytes] = None
-    # PADDING = 0
-    # VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
-    # OPTIONS = None
-
     VERSION = 4
     HEADER_LEN = 5
     TOS = 0
     DGRAM_LEN = 20     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
     ID = 0
-    TTL = 64
+    TTL = 255
     PROTOCOL = socket.IPPROTO_TCP
     DEFAULT_CHECKSUM = 0
-    SRC_ADDRESS = socket.inet_aton('10.110.208.106')
-    DEST_ADDRESS = socket.inet_aton('204.44.192.60')
+    SRC_ADDRESS: Optional[bytes] = None
+    DEST_ADDRESS: Optional[bytes] = None
     PADDING = 0
     VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
-    OPTIONS = None
+    OPTIONS = b''
+
+    # VERSION = 4
+    # HEADER_LEN = 5
+    # TOS = 0
+    # DGRAM_LEN = 20     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
+    # ID = 0
+    # TTL = 64
+    # PROTOCOL = socket.IPPROTO_TCP
+    # DEFAULT_CHECKSUM = 0
+    # SRC_ADDRESS = bytes.fromhex('0a6ed06a') # socket.inet_aton('10.110.208.106')
+    # DEST_ADDRESS = bytes.fromhex('cc2cc03c') # socket.inet_aton('204.44.192.60')
+    # PADDING = 0
+    # VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
+    # OPTIONS = b''
     
     ''' IP Flags '''
     FLAG_RSV = 0
