@@ -93,7 +93,7 @@ class tcp:
         # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
         tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
         tcp_headers = dict(zip(tcp.KEYS_FIELDS, tcp_header_fields))
-        print(tcp_headers)
+        print(tport_layer_packet.hex(' '))
 
         # Validate: if packet is headed towards the correct destination port
         # No need to verify TCP fields - return
