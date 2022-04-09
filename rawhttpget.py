@@ -1,4 +1,3 @@
-from email import header
 import socket, sys, os, time, argparse, random
 
 import utils

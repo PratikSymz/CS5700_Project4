@@ -6,28 +6,21 @@ import utils
 
 
 class tcp:
+    '''
+        Data class for TCP fields and methods related to TCP header packing, unpacking and checksum verification
+    '''
+
     ''' TCP Header fields '''
     SOURCE_PORT = random.randint(49152, 65535)
     DEST_PORT = 80
-    SEQ_NUM = random.randint(0, pow(2, 32) - 1)
-    ACK_NUM = 0
-    DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where the data starts.
-    ADV_WINDOW = 65535  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
+    SEQ_NUM = random.randint(0, pow(2, 32) - 1)     # sequence number of the current packet
+    ACK_NUM = 0     # acknowledgement number of last ACKed packet
+    DATA_OFFSET = 5     # (No. of words = No. of rows). Offset to show after where the data starts.
+    ADV_WINDOW = 65535      # current advertised window of the receiver
     DEFAULT_CHECKSUM = 0
     URGENT_PTR = 0
     MSS = 1460
     OPTIONS = b''
-
-    # SOURCE_PORT = 50871
-    # DEST_PORT = 80
-    # SEQ_NUM = 2753993875
-    # ACK_NUM = 0
-    # DATA_OFFSET = 11  # (No. of words = No. of rows). Offset to show after where the data starts.
-    # ADV_WINDOW = 65535  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
-    # DEFAULT_CHECKSUM = 0
-    # URGENT_PTR = 0
-    # MSS = 1460  #536
-    # OPTIONS = bytes.fromhex('020405b4010303060101080abb6879f80000000004020000')
 
     ''' 
     TCP Flags
@@ -49,14 +42,14 @@ class tcp:
     @staticmethod
     def pack_tcp_fields(flags: int, payload: bytes):
         '''
-        Helper method to instantiate TCP fields: Takes in TCP fields as params that do not remain constant and pack with the data
-            1. param: seq_num - sequence number of the current packet
-            2. param: ack_num - acknowledgement number of last ACKed packet
-            3. param: flags - flags that will be changed (SYN, ACK, FIN)
-            4. param: adv_window - current advertised window of the receiver
-            5. param: data - payload to be send over the raw socket connection
-            6. return: Data packet with the TCP header added on top of the payload (data)
+            Function: pack_tcp_fields() - this method is responsible for instantiating the TCP fields. Evaluates checksum using the psuedo IP header
+                to calculate the checksum, which is packed into the TCP header with the Options and Payload.
+            Parameters:
+                flags - flags that will be changed (SYN, ACK, FIN, FIN/ACK)
+                payload - data (in bytes) to be sent over the socket connection
+            Returns: Transport layer packet with the TCP header wrapped over the payload
         '''
+        # Create temporary tcp headers
         temp_tcp_header = pack(
             tcp.HEADER_FORMAT,
             tcp.SOURCE_PORT, tcp.DEST_PORT, tcp.SEQ_NUM, tcp.ACK_NUM, tcp.DATA_OFFSET << 4, flags, tcp.ADV_WINDOW, tcp.DEFAULT_CHECKSUM, tcp.URGENT_PTR
@@ -64,6 +57,7 @@ class tcp:
 
         tcp_segment_length = len(temp_tcp_header) + len(payload)
 
+        # Build the pseudo IP header
         pseudo_ip_header = pack(
             ip.PSEUDO_HEADER_FORMAT,
             ip.SRC_ADDRESS, ip.DEST_ADDRESS, ip.PADDING, ip.PROTOCOL, tcp_segment_length
@@ -86,18 +80,19 @@ class tcp:
     @staticmethod
     def unpack_tcp_fields(tport_layer_packet: bytes):
         '''
-        Helper method to unpack TCP fields: Takes in Transport layer packet as param and extracts the TCP header
-            1. param: tport_layer_packet - Data from the Transport layer (TCP header + payload)
-            2. return: a key-value table of the fields of the TCP header and the payload
+            Function: unpack_tcp_fields() - this method takes in the Transport layer packet as parameter and extracts 
+                the TCP headers and the payload
+            Parameters:
+                tport_layer_packet - data (in bytes) of the transport layer packet containing the TCP headers and the payload
+            Returns: the parsed TCP headers (key-value pairs) and the payload
         '''
-        # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
+        # Extract header fields from packet
         tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
         tcp_headers = dict(zip(tcp.KEYS_FIELDS, tcp_header_fields))
 
         # Validate: if packet is headed towards the correct destination port
         # No need to verify TCP fields - return
         if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
-            #raise Exception('TCP: Invalid Dest. PORT!')
             return False
 
         # Validate presence of any TCP options
@@ -113,25 +108,35 @@ class tcp:
 
         payload = tport_layer_packet[4 * tcp.DATA_OFFSET: ]
 
-        # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
+        # Validate: TCP packet checksum - compute checksum again
+        # Checksum error - Corrupted packet - receive retransmission
         if (not tcp.validate_header_checksum(tcp_headers["checksum"], tcp_headers, tport_layer_packet, tcp.OPTIONS, payload)):
-            # ! send last packet
             return False
-            # raise Exception('TCP: Invalid CHECKSUM!')
 
         # Return the TCP headers and payload
         return tcp_headers, payload
 
     @staticmethod
     def validate_header_checksum(packet_checksum: bytes, tcp_fields: dict, tport_layer_packet: bytes, tcp_options: bytes, payload: bytes):
-        ''' Helper method to verify TCP checksum '''
+        '''
+            Function: validate_header_checksum() - this method takes in the tcp fields from the received packet as input along 
+                with the options and the payload and calculated the checksum which is compared against the received checksum
+            Parameters:
+                packet_checksum - checksum of the packet received from server
+                tcp_fields - key-value pairs of the TCP header fields
+                tport_layer_packet - data (in bytes) of the transport layer packet containing the TCP headers and the payload
+                tcp_options - the TCP options received from the packet
+                payload - the payload of the received packet
+            Returns: whether the calculate checksum is same as the received checksum (bool)
+        '''
         temp_tcp_header = pack(
             tcp.HEADER_FORMAT, 
             tcp_fields["src_port"], tcp_fields["dest_port"], tcp_fields["seq_num"], tcp_fields["ack_num"], tcp_fields["data_offset"], tcp_fields["flags"], tcp_fields["adv_window"], tcp.DEFAULT_CHECKSUM, tcp_fields["urgent_ptr"]
         ) + tcp_options  # TCP Options wasn't unpacked hence, no need to be packed again
 
-        # TODO: Check if during Checksum verification, should it be set to 0 or the actual value
         tcp_segment_length = len(tport_layer_packet)    # Already contains payload
+
+        # Recalculate psuedo IP header
         pseudo_ip_header = pack(
             ip.PSEUDO_HEADER_FORMAT,
             ip.SRC_ADDRESS, ip.DEST_ADDRESS, ip.PADDING, ip.PROTOCOL, tcp_segment_length
@@ -142,6 +147,10 @@ class tcp:
 
 
 class ip:
+    '''
+        Data class for IP fields and methods related to IP header packing, unpacking and checksum verification
+    '''
+
     ''' IP Header fields '''
     # Convert IP addr dotted-quad string into 32 bit binary format
     VERSION = 4
@@ -156,27 +165,13 @@ class ip:
     DEST_ADDRESS: Optional[bytes] = None
     PADDING = 0
     VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
-
-    # VERSION = 4
-    # HEADER_LEN = 5
-    # TOS = 0
-    # DGRAM_LEN = 4 * HEADER_LEN     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
-    # ID = 0
-    # TTL = 64
-    # PROTOCOL = socket.IPPROTO_TCP
-    # DEFAULT_CHECKSUM = 0
-    # SRC_ADDRESS = socket.inet_aton('10.110.208.106')
-    # DEST_ADDRESS = socket.inet_aton('204.44.192.60')
-    # PADDING = 0
-    # VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
-    # OPTIONS = b''
     
     ''' IP Flags '''
     FLAG_RSV = 0
     FLAG_DTF = 0
     FLAG_MRF = 0
     FLAG_FRAG_OFFSET = 0
-    FLAGS = (FLAG_RSV << 7) + (FLAG_DTF << 6) + (FLAG_MRF << 5) + FLAG_FRAG_OFFSET  # 0x4000
+    FLAGS = (FLAG_RSV << 7) + (FLAG_DTF << 6) + (FLAG_MRF << 5) + FLAG_FRAG_OFFSET
 
     ''' Header formats '''
     PSEUDO_HEADER_FORMAT = '!4s4sBBH'
@@ -186,6 +181,14 @@ class ip:
 
     @staticmethod
     def pack_ip_fields(tport_layer_packet: bytes):
+        '''
+            Function: pack_ip_fields() - this method is responsible for instantiating the IP fields. Evaluates checksum using the temporary IP header
+                to calculate the checksum, which is packed into the TCP header with the Options and Payload.
+            Parameters:
+                flags - flags that will be changed (SYN, ACK, FIN, FIN/ACK)
+                payload - data (in bytes) to be sent over the socket connection
+            Returns: Transport layer packet with the TCP header wrapped over the payload
+        '''
         '''
         Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
             param: tcp_packet - packet from the Transport layer and the payload
