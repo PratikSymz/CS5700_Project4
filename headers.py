@@ -93,13 +93,14 @@ class tcp:
         # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
         tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
         tcp_headers = dict(zip(tcp.KEYS_FIELDS, tcp_header_fields))
+        print(tcp_headers)
 
         # Validate: if packet is headed towards the correct destination port
         # No need to verify TCP fields - return
-        # if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
-        #     print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
-        #     #raise Exception('TCP: Invalid Dest. PORT!')
-        #     return False
+        if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
+            print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
+            #raise Exception('TCP: Invalid Dest. PORT!')
+            return False
 
         # Validate presence of any TCP options
         # 1. Shift offset 4 bits from data offset field and get no. of words value
