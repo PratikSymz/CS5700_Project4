@@ -94,6 +94,12 @@ class tcp:
         tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
         tcp_headers = dict(zip(tcp.KEYS_FIELDS, tcp_header_fields))
 
+        # Validate: if packet is headed towards the correct destination port
+        # No need to verify TCP fields - return
+        if (tcp_headers["src_port"] != tcp.DEST_PORT and tcp_headers["dest_port"] != tcp.SOURCE_PORT):
+            #raise Exception('TCP: Invalid Dest. PORT!')
+            return False
+
         # Validate presence of any TCP options
         # 1. Shift offset 4 bits from data offset field and get no. of words value
         tcp.DATA_OFFSET = tcp_headers["data_offset"] >> 4
@@ -104,11 +110,6 @@ class tcp:
             tcp.MSS = unpack('!H', tcp.OPTIONS[0:4][2: ])[0]
 
         payload = tport_layer_packet[4 * tcp.DATA_OFFSET: ]
-
-        # Validate: if packet is headed towards the correct destination port
-        if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
-            print(tcp_headers)
-            raise Exception('TCP: Invalid Dest. PORT!')
 
         # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
         if (not tcp.validate_header_checksum(tcp_headers["checksum"], tcp_headers, tport_layer_packet, tcp.OPTIONS, payload)):
@@ -235,13 +236,16 @@ class ip:
 
         # Verify IP fields
         if (ip_headers["dest_addr"] != ip.SRC_ADDRESS):
-            raise Exception('IP: Invalid Dest. IP ADDR!')
+            # raise Exception('IP: Invalid Dest. IP ADDR!')
+            return False
 
         if (ip_headers["version"] != ip.VERSION):
-            raise Exception('IP: Invalid NOT IPv4!')
+            # raise Exception('IP: Invalid NOT IPv4!')
+            return False
 
         if (ip_headers["protocol"] != ip.PROTOCOL):
-            raise Exception('IP: Invalid PROTOCOL!')
+            # raise Exception('IP: Invalid PROTOCOL!')
+            return False
 
         if (not ip.validate_header_checksum(ip_headers["checksum"], ip_headers)):
             raise Exception('IP: Invalid CHECKSUM!')
