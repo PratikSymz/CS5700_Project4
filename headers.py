@@ -107,7 +107,7 @@ class tcp:
 
         # Validate: if packet is headed towards the correct destination port
         if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
-            print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
+            print(tcp_headers)
             raise Exception('TCP: Invalid Dest. PORT!')
 
         # Validate: TCP packet checksum - compute checksum again and add with the tcp checksum - should be 0xffff
