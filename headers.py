@@ -93,8 +93,6 @@ class tcp:
         # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
         tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
         tcp_headers = dict(zip(tcp.KEYS_FIELDS, tcp_header_fields))
-        print("Packet: ", tport_layer_packet.hex(' '))
-        print("Unpacked: ", tcp_header_fields)
 
         # Validate: if packet is headed towards the correct destination port
         # No need to verify TCP fields - return
@@ -108,7 +106,7 @@ class tcp:
 
         # If this offset is = 5 words means that Options and Padding fields are empty, so..
         if (tcp.DATA_OFFSET > 5):    # There are options [0...40B max]
-            tcp.OPTIONS = tport_layer_packet[20 : 4 * tcp.DATA_OFFSET]
+            tcp.OPTIONS = tport_layer_packet[20 : 24]
             tcp.MSS = unpack('!H', tcp.OPTIONS[0:4][2: ])[0]
 
         payload = tport_layer_packet[4 * tcp.DATA_OFFSET: ]
@@ -154,7 +152,6 @@ class ip:
     DEST_ADDRESS: Optional[bytes] = None
     PADDING = 0
     VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
-    OPTIONS = b''
 
     # VERSION = 4
     # HEADER_LEN = 5
@@ -175,7 +172,7 @@ class ip:
     FLAG_DTF = 0
     FLAG_MRF = 0
     FLAG_FRAG_OFFSET = 0
-    FLAGS = 0x4000 # (FLAG_RSV << 7) + (FLAG_DTF << 6) + (FLAG_MRF << 5) + FLAG_FRAG_OFFSET
+    FLAGS = (FLAG_RSV << 7) + (FLAG_DTF << 6) + (FLAG_MRF << 5) + FLAG_FRAG_OFFSET  # 0x4000
 
     ''' Header formats '''
     PSEUDO_HEADER_FORMAT = '!4s4sBBH'
@@ -223,17 +220,18 @@ class ip:
         if (ip_headers["src_addr"] != ip.DEST_ADDRESS):
             return False
 
+        print(ip_headers)
         ip_headers["version"] = (ip_headers["vhl"] >> 4)
         ip_headers["header_len"] = (ip_headers["vhl"] & 0x0F)
-        ip_headers["frag_offset"] = (ip_headers["flags"] & 0x1FFF)
+        # ip_headers["frag_offset"] = (ip_headers["flags"] & 0x1FFF)
 
-        options_offset = ip_headers["header_len"] >> 4
-        # check for ip options
-        if (ip_headers["header_len"] > 5):
-            ip.OPTIONS = net_layer_packet[20 : 4 * options_offset]
+        # options_offset = ip_headers["header_len"] >> 4
+        # # check for ip options
+        # if (ip_headers["header_len"] > 5):
+        #     ip.OPTIONS = net_layer_packet[20 : 4 * options_offset]
 
         # The IP header payload
-        tport_layer_packet = net_layer_packet[4 * options_offset: ]
+        tport_layer_packet = net_layer_packet[20: ]
 
         # Verify IP fields
         if (ip_headers["dest_addr"] != ip.SRC_ADDRESS):
