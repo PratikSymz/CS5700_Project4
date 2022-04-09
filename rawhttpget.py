@@ -184,6 +184,7 @@ class RawSocket:
         # Send final ACK and finish handshake
         # At end of SYN/ACK <1S, 2C>
         if (tcp.SEQ_NUM == tcp_headers["ack_num"] - 1):
+            print('2-Way Handshake')
             # Complete handshake procedure
             # ACK received for Client side, update SEQ_NUM and send ACK to Server
             # utils.TCP_SEQ_NUM += 1

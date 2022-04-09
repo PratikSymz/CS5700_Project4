@@ -215,7 +215,6 @@ class ip:
         '''
         ip_header_fields = unpack(ip.HEADER_FORMAT, net_layer_packet[ :20])
         ip_headers = dict(zip(ip.KEYS_FIELDS, ip_header_fields))
-        print(ip_headers)
 
         # Only want to process packets from the project server
         # No need to verify IP fields - return
