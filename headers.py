@@ -96,10 +96,10 @@ class tcp:
 
         # Validate: if packet is headed towards the correct destination port
         # No need to verify TCP fields - return
-        if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
-            print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
-            #raise Exception('TCP: Invalid Dest. PORT!')
-            return False
+        # if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
+        #     print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
+        #     #raise Exception('TCP: Invalid Dest. PORT!')
+        #     return False
 
         # Validate presence of any TCP options
         # 1. Shift offset 4 bits from data offset field and get no. of words value

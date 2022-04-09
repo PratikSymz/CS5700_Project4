@@ -65,26 +65,6 @@ def get_localhost_addr():
 
     return localhost[0]
 
-def get_localhost_port(receiver_socket: socket.socket, receiver_ip: str):
-    '''
-        Function: get_localhost_port - determines the available localhost port no. to initiate communication\n
-        Parameters: 
-            receiver_socket - the receiver-side (localhost) socket
-            receiver_ip - the receiver-side (localhost) ip address
-        Returns: the localhost port number
-    '''
-    random_port = 0
-    while True:
-        random_port = random.randint(49152, 65535)
-        try:
-            receiver_socket.bind((receiver_ip, random_port))
-        except:
-            continue    # Current port not available. Try again!
-        else:
-            break       # Found available port
-
-    return random_port
-
 def get_destination_url(arg_url: str):
     '''
         Function: get_destination_url - extracts the destination address from the argument url
