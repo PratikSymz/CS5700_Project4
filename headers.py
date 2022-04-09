@@ -7,7 +7,7 @@ import utils
 
 class tcp:
     ''' TCP Header fields '''
-    SOURCE_PORT = 50871
+    SOURCE_PORT = random.randint(49152, 65535)
     DEST_PORT = 80
     SEQ_NUM = random.randint(0, pow(2, 32) - 1)
     ACK_NUM = 0
