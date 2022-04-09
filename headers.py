@@ -7,27 +7,27 @@ import utils
 
 class tcp:
     ''' TCP Header fields '''
+    SOURCE_PORT = 50871
+    DEST_PORT = 80
+    SEQ_NUM = random.randint(0, pow(2, 32) - 1)
+    ACK_NUM = 0
+    DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where the data starts.
+    ADV_WINDOW = 65535  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
+    DEFAULT_CHECKSUM = 0
+    URGENT_PTR = 0
+    MSS = 1460
+    OPTIONS = b''
+
     # SOURCE_PORT = 50871
     # DEST_PORT = 80
-    # SEQ_NUM = random.randint(0, pow(2, 32) - 1)
+    # SEQ_NUM = 2753993875
     # ACK_NUM = 0
-    # DATA_OFFSET = 5  # (No. of words = No. of rows). Offset to show after where the data starts.
+    # DATA_OFFSET = 11  # (No. of words = No. of rows). Offset to show after where the data starts.
     # ADV_WINDOW = 65535  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
     # DEFAULT_CHECKSUM = 0
     # URGENT_PTR = 0
-    # MSS = 1500  #536
-    # OPTIONS = b''
-
-    SOURCE_PORT = 50871
-    DEST_PORT = 80
-    SEQ_NUM = 2753993875
-    ACK_NUM = 0
-    DATA_OFFSET = 11  # (No. of words = No. of rows). Offset to show after where the data starts.
-    ADV_WINDOW = socket.htons(65535)  # TCP header value allocated for window size: two bytes long. Highest numeric value for a receive window is 65,535 bytes.
-    DEFAULT_CHECKSUM = 0
-    URGENT_PTR = 0
-    MSS = 1460  #536
-    OPTIONS = bytes.fromhex('020405b4010303060101080abb6879f80000000004020000')
+    # MSS = 1460  #536
+    # OPTIONS = bytes.fromhex('020405b4010303060101080abb6879f80000000004020000')
 
     ''' 
     TCP Flags
@@ -72,7 +72,6 @@ class tcp:
         # Calculate Checksum by taking into account TCP header, TCP body and Pseudo IP header
         check = pseudo_ip_header + temp_tcp_header + payload
         checksum = utils.compute_header_checksum(check)
-        print('TCP Checksum: ', hex(checksum))
 
         # Repack TCP header
         tcp_header = pack(
@@ -94,7 +93,6 @@ class tcp:
         # Extract header fields from packet - 5 words - 20B. After 20B - ip_payload
         tcp_header_fields = unpack(tcp.HEADER_FORMAT, tport_layer_packet[ :20])
         tcp_headers = dict(zip(tcp.KEYS_FIELDS, tcp_header_fields))
-        print(tcp_headers)
 
         # Validate presence of any TCP options
         # 1. Shift offset 4 bits from data offset field and get no. of words value
@@ -108,7 +106,6 @@ class tcp:
         payload = tport_layer_packet[4 * tcp.DATA_OFFSET: ]
 
         # Validate: if packet is headed towards the correct destination port
-        print(tcp_headers["dest_port"], tcp.SOURCE_PORT)
         if (tcp_headers["dest_port"] != tcp.SOURCE_PORT):
             raise Exception('TCP: Invalid Dest. PORT!')
 
@@ -117,7 +114,6 @@ class tcp:
             raise Exception('TCP: Invalid CHECKSUM!')
 
         # Return the TCP headers and payload
-        print(payload)
         return tcp_headers, payload
 
     @staticmethod
@@ -142,46 +138,45 @@ class tcp:
 class ip:
     ''' IP Header fields '''
     # Convert IP addr dotted-quad string into 32 bit binary format
-    # VERSION = 4
-    # HEADER_LEN = 5
-    # TOS = 0
-    # DGRAM_LEN = 4 * HEADER_LEN     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
-    # ID = 0
-    # TTL = 255
-    # PROTOCOL = socket.IPPROTO_TCP
-    # DEFAULT_CHECKSUM = 0
-    # SRC_ADDRESS: Optional[bytes] = None
-    # DEST_ADDRESS: Optional[bytes] = None
-    # PADDING = 0
-    # VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
-    # OPTIONS = b''
-
     VERSION = 4
     HEADER_LEN = 5
     TOS = 0
     DGRAM_LEN = 4 * HEADER_LEN     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
     ID = 0
-    TTL = 64
+    TTL = 255
     PROTOCOL = socket.IPPROTO_TCP
     DEFAULT_CHECKSUM = 0
-    SRC_ADDRESS = socket.inet_aton('10.110.208.106')
-    DEST_ADDRESS = socket.inet_aton('204.44.192.60')
+    SRC_ADDRESS: Optional[bytes] = None
+    DEST_ADDRESS: Optional[bytes] = None
     PADDING = 0
     VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
     OPTIONS = b''
+
+    # VERSION = 4
+    # HEADER_LEN = 5
+    # TOS = 0
+    # DGRAM_LEN = 4 * HEADER_LEN     # Start with IHL -> 5 words -> 20B + DATA Length (not known yet)
+    # ID = 0
+    # TTL = 64
+    # PROTOCOL = socket.IPPROTO_TCP
+    # DEFAULT_CHECKSUM = 0
+    # SRC_ADDRESS = socket.inet_aton('10.110.208.106')
+    # DEST_ADDRESS = socket.inet_aton('204.44.192.60')
+    # PADDING = 0
+    # VER_HEADER_LEN = (VERSION << 4) + HEADER_LEN
+    # OPTIONS = b''
     
     ''' IP Flags '''
     FLAG_RSV = 0
     FLAG_DTF = 0
     FLAG_MRF = 0
     FLAG_FRAG_OFFSET = 0
-    FLAGS = (FLAG_RSV << 7) + (FLAG_DTF << 6) + (FLAG_MRF << 5) + FLAG_FRAG_OFFSET
+    FLAGS = 0x4000 # (FLAG_RSV << 7) + (FLAG_DTF << 6) + (FLAG_MRF << 5) + FLAG_FRAG_OFFSET
 
     ''' Header formats '''
     PSEUDO_HEADER_FORMAT = '!4s4sBBH'
     HEADER_FORMAT = '!BBHHHBBH4s4s'
 
-    IP_HDR_FMT = '!BBHHHBBH4s4s'
     KEYS_FIELDS = ['vhl', 'tos', 'total_len', 'id', 'flags', 'ttl', 'protocol', 'checksum', 'src_addr', 'dest_addr', 'version', 'header_len', 'frag_offset']
 
     @staticmethod
@@ -198,12 +193,8 @@ class ip:
             ip.HEADER_FORMAT,
             ip.VER_HEADER_LEN, ip.TOS, ip.DGRAM_LEN, ip.ID, ip.FLAGS, ip.TTL, ip.PROTOCOL, ip.DEFAULT_CHECKSUM, ip.SRC_ADDRESS, ip.DEST_ADDRESS
         )
-        print(ip.FLAGS)
-        
-        print(temp_ip_header.hex(' '))
 
         checksum = utils.compute_header_checksum(temp_ip_header)
-        print('IP Checksum: ', hex(checksum))
 
         # Repack IP Header with the checksum
         net_layer_packet = pack(
@@ -222,7 +213,6 @@ class ip:
         '''
         ip_header_fields = unpack(ip.HEADER_FORMAT, net_layer_packet[ :20])
         ip_headers = dict(zip(ip.KEYS_FIELDS, ip_header_fields))
-        print(ip_headers)
 
         # Only want to process packets from the project server
         # No need to verify IP fields - return
@@ -266,6 +256,5 @@ class ip:
         )
 
         checksum = utils.compute_header_checksum(temp_ip_header)
-        print(checksum)
 
         return (checksum == packet_checksum)
