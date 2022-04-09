@@ -1,6 +1,4 @@
-import random, socket
-from tabnanny import check
-from unittest import result
+import socket
 
 
 ''' Set of constant fields for HTTP connection '''
@@ -9,17 +7,16 @@ HOST_NAME_HEADER = 'Host: '
 
 def compute_header_checksum(header_data: bytes):
     '''
-        Function: compute_header_checksum - computes the header checksum for TCP/IP headers to send to the server
+        Function: compute_header_checksum() - computes the header checksum for TCP/IP headers to send to the server
         Parameters:
-            header_data - header information in bytes
+            header_data - header information (in bytes)
         Returns: the header checksum value in bytes
     '''
-    ''' Reference: http://en.wikipedia.org/wiki/IPv4_header_checksum '''
     checksum = 0
 
     # Sum up 2 words at a time (16 bits)
     for i in range(0, len(header_data), 2):
-        # Sum the ordinal of each word and the network bits order
+        # Sum the value of each word
         if (i == len(header_data) - 1):
             checksum += header_data[i]
         else:
@@ -34,7 +31,7 @@ def compute_header_checksum(header_data: bytes):
 
 def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
     '''
-        Function: set_congestion_control - sets the congestion window value for data transmission limit
+        Function: set_congestion_control() - sets the congestion window value for data transmission limit
         Parameters: 
             cwnd - the current congestion window, 
             ssthresh - the advertised window limit of the client, 
@@ -52,7 +49,7 @@ def set_congestion_control(cwnd: int, ssthresh: int, slow_start=False):
 
 def get_localhost_addr():
     '''
-        Function: get_localhost_addr - determines the localhost ip address by pinging to Google's primary DNS server
+        Function: get_localhost_addr() - determines the localhost ip address by pinging to Google's primary DNS server
         Parameters: none
         Returns: the localhost ip address
     '''
@@ -67,7 +64,7 @@ def get_localhost_addr():
 
 def get_destination_url(arg_url: str):
     '''
-        Function: get_destination_url - extracts the destination address from the argument url
+        Function: get_destination_url() - extracts the destination address from the argument url
         Parameters: 
             arg_url - the argument url from the script
         Returns: the url without the 'http' header and the host url
@@ -88,7 +85,7 @@ def get_destination_url(arg_url: str):
 
 def build_GET_request(url: str, host_url: str):
     '''
-        Function: build_GET_request - builds the HTTP GET request using the argument url
+        Function: build_GET_request() - builds the HTTP GET request using the argument url
         Parameters: 
             url - the destination url with the paths
             host_url - the destination hostname
@@ -103,7 +100,7 @@ def build_GET_request(url: str, host_url: str):
 
 def parse_response(http_response: str):
     '''
-        Function: parse_response - parses the response data from the GET request and returns the raw content of the response
+        Function: parse_response() - parses the response data from the GET request and returns the raw content of the response
         Parameters: 
             http_response - the http response received from server
         Returns: the raw headers and raw HTML body
@@ -118,7 +115,7 @@ def parse_response(http_response: str):
 
 def parse_headers(raw_headers: str):
     '''
-        Function: parse_headers - parse the raw HTTP headers to a key-value pair table
+        Function: parse_headers() - parse the raw HTTP headers to a key-value pair table
         Parameters: 
             raw_headers - the raw http headers
         Returns: the parsed http headers in key-value format
@@ -138,7 +135,6 @@ def parse_headers(raw_headers: str):
     
     return headers
 
-""" Helper method to retrieve response code from raw HTTP header information """
 def get_response_code(raw_headers):
     '''
         Function: get_response_code() - parse the raw HTTP headers to extract the HTTP status code
@@ -155,7 +151,7 @@ def get_response_code(raw_headers):
 
 def get_filename(url_path: str):
     '''
-        Function: get_filename - extracts the filename from the given url path
+        Function: get_filename() - extracts the filename from the given url path
         Parameters: 
             url_path - the argument url from the script input
         Returns: the filename string to be used to write content to
@@ -170,22 +166,21 @@ def get_filename(url_path: str):
 
     return file_name
 
-# ! check if correct content written
 def write_to_file(file_name: str, content: str):
     '''
-        Function: write_to_file - writes and saves content to a file
+        Function: write_to_file() - writes and saves content to a file
         Parameters: 
             file_name - the name of the file to write to; if file does not exist, it is created
             content - the content to be written to the file
         Returns: none
     '''
-    file = open(file_name, 'w+') # ! not sure if it needs to be set for binary just yet - left as default for now
+    file = open(file_name, 'w+')
     file.write(content)
     file.close()
 
 def concat_tcp_flags(tcp_flags: dict):
     '''
-        Function: concat_tcp_flags - concatenates the TCP flags to a single header flag field
+        Function: concat_tcp_flags() - concatenates the TCP flags to a single header flag field
         Parameters: 
             tcp_flags - the dictionary (hash table) of TCP flags and their corresponding bit values
         Returns: the concatenated TCP header flag field value
@@ -194,7 +189,7 @@ def concat_tcp_flags(tcp_flags: dict):
 
 def set_syn_bit(tcp_flags: dict):
     '''
-        Function: set_syn_bit - set the SYN flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Function: set_syn_bit() - set the SYN flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
         Parameters: 
             tcp_flags - the TCP flags dictionary (hash table)
         Returns: the modified TCP flags
@@ -206,7 +201,7 @@ def set_syn_bit(tcp_flags: dict):
 
 def set_syn_ack_bits(tcp_flags: dict):
     '''
-        Function: set_syn_ack_bits - set the SYN and ACK flags to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Function: set_syn_ack_bits() - set the SYN and ACK flags to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
         Parameters: 
             tcp_flags - the TCP flags dictionary (hash table)
         Returns: the modified TCP flags
@@ -219,7 +214,7 @@ def set_syn_ack_bits(tcp_flags: dict):
 
 def set_ack_bit(tcp_flags: dict):
     '''
-        Function: set_ack_bit - set the ACK flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Function: set_ack_bit() - set the ACK flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
         Parameters: 
             tcp_flags - the TCP flags dictionary (hash table)
         Returns: the modified TCP flags
@@ -231,7 +226,7 @@ def set_ack_bit(tcp_flags: dict):
 
 def set_fin_ack_bits(tcp_flags: dict):
     '''
-        Function: set_fin_ack_bits - set the FIN and ACK flags to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Function: set_fin_ack_bits() - set the FIN and ACK flags to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
         Parameters: 
             tcp_flags - the TCP flags dictionary (hash table)
         Returns: the modified TCP flags
@@ -244,7 +239,7 @@ def set_fin_ack_bits(tcp_flags: dict):
 
 def set_fin_bits(tcp_flags: dict):
     '''
-        Function: set_fin_bits - set the FIN flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
+        Function: set_fin_bits() - set the FIN flag to 1 in the TCP flags dictionary (hash table) after resetting all flags to 0
         Parameters: 
             tcp_flags - the TCP flags dictionary (hash table)
         Returns: the modified TCP flags

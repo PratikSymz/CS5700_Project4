@@ -120,7 +120,7 @@ class tcp:
     def validate_header_checksum(packet_checksum: bytes, tcp_fields: dict, tport_layer_packet: bytes, tcp_options: bytes, payload: bytes):
         '''
             Function: validate_header_checksum() - this method takes in the tcp fields from the received packet as input along 
-                with the options and the payload and calculated the checksum which is compared against the received checksum
+                with the options and the payload and calculates the checksum which is compared against the received checksum
             Parameters:
                 packet_checksum - checksum of the packet received from server
                 tcp_fields - key-value pairs of the TCP header fields
@@ -182,19 +182,13 @@ class ip:
     @staticmethod
     def pack_ip_fields(tport_layer_packet: bytes):
         '''
-            Function: pack_ip_fields() - this method is responsible for instantiating the IP fields. Evaluates checksum using the temporary IP header
-                to calculate the checksum, which is packed into the TCP header with the Options and Payload.
+            Function: pack_ip_fields() - this method is responsible for instantiating the IP fields. Evaluates checksum using the IP header
+                to calculate the checksum, which is wrapped around the TCP packet
             Parameters:
-                flags - flags that will be changed (SYN, ACK, FIN, FIN/ACK)
-                payload - data (in bytes) to be sent over the socket connection
-            Returns: Transport layer packet with the TCP header wrapped over the payload
+                tport_layer_packet - data (in bytes) of the transport layer packet containing the TCP headers and the payload
+            Returns: Network layer packet with the IP headers wrapped over the TCP headers and the payload
         '''
-        '''
-        Helper method to wrap IP header around the TCP header and data: Takes in tcp packet as param.
-            param: tcp_packet - packet from the Transport layer and the payload
-            return: Network layer packet with the IP header wrapped around
-        '''
-        #ip.ID = random.randint(0, 65535)   # ID MAX: 65535
+        # ! ip.ID = random.randint(0, 65535)   # ID MAX: 65535
         ip.DGRAM_LEN = 4 * ip.HEADER_LEN + len(tport_layer_packet)
 
         temp_ip_header = pack(
@@ -202,9 +196,10 @@ class ip:
             ip.VER_HEADER_LEN, ip.TOS, ip.DGRAM_LEN, ip.ID, ip.FLAGS, ip.TTL, ip.PROTOCOL, ip.DEFAULT_CHECKSUM, ip.SRC_ADDRESS, ip.DEST_ADDRESS
         )
 
+        # Compute the packet checksum
         checksum = utils.compute_header_checksum(temp_ip_header)
 
-        # Repack IP Header with the checksum
+        # Repack IP Header with the checksum and the TCP packet
         net_layer_packet = pack(
             ip.HEADER_FORMAT,
             ip.VER_HEADER_LEN, ip.TOS, ip.DGRAM_LEN, ip.ID, ip.FLAGS, ip.TTL, ip.PROTOCOL, checksum, ip.SRC_ADDRESS, ip.DEST_ADDRESS
@@ -215,10 +210,13 @@ class ip:
     @staticmethod
     def unpack_ip_fields(net_layer_packet: bytes):
         '''
-        Helper method to unpack the IP fields from the transport layer packet.
-            param: tport_layer_packet - the transport layer data wrapped with TCP and IP headers
-            return: network layer packet containing TCP headers and payload
+            Function: unpack_ip_fields() - this method takes in the Network layer packet as parameter and extracts 
+                the IP headers and the Transport layer packet which contain the TCP headers and the payload
+            Parameters:
+                net_layer_packet - data (in bytes) of the network layer packet containing the IP, TCP headers and the payload
+            Returns: the parsed IP headers (key-value pairs) and the Transport layer packet
         '''
+        # Unpack the IP headers
         ip_header_fields = unpack(ip.HEADER_FORMAT, net_layer_packet[ :20])
         ip_headers = dict(zip(ip.KEYS_FIELDS, ip_header_fields))
 
@@ -227,47 +225,45 @@ class ip:
         if (ip_headers["src_addr"] != ip.DEST_ADDRESS):
             return False
 
-        print(ip_headers)
+        # Extract the version and the header length
         ip_headers["version"] = (ip_headers["vhl"] >> 4)
         ip_headers["header_len"] = (ip_headers["vhl"] & 0x0F)
-        # ip_headers["frag_offset"] = (ip_headers["flags"] & 0x1FFF)
-
-        # options_offset = ip_headers["header_len"] >> 4
-        # # check for ip options
-        # if (ip_headers["header_len"] > 5):
-        #     ip.OPTIONS = net_layer_packet[20 : 4 * options_offset]
 
         # The IP header payload
         tport_layer_packet = net_layer_packet[20: ]
 
         # Verify IP fields
         if (ip_headers["dest_addr"] != ip.SRC_ADDRESS):
-            # raise Exception('IP: Invalid Dest. IP ADDR!')
             return False
 
         if (ip_headers["version"] != ip.VERSION):
-            # raise Exception('IP: Invalid NOT IPv4!')
             return False
 
         if (ip_headers["protocol"] != ip.PROTOCOL):
-            # raise Exception('IP: Invalid PROTOCOL!')
             return False
 
         if (not ip.validate_header_checksum(ip_headers["checksum"], ip_headers)):
             return False
-            # raise Exception('IP: Invalid CHECKSUM!')
         
         # Return the IP headers and Transport layer packet
         return ip_headers, tport_layer_packet
 
     @staticmethod
     def validate_header_checksum(packet_checksum: bytes, ip_headers: dict):
-        ''' Helper method to verify IP checksum '''
+        '''
+            Function: validate_header_checksum() - this method takes in the ip fields from the received packet as input and 
+                calculates the checksum which is compared against the received checksum
+            Parameters:
+                packet_checksum - checksum of the packet received from server
+                ip_headers - key-value pairs of the IP header fields
+            Returns: whether the calculate checksum is same as the received checksum (bool)
+        '''
         temp_ip_header = pack(
             ip.HEADER_FORMAT,
             ip_headers["vhl"], ip_headers["tos"], ip_headers["total_len"], ip_headers["id"], ip_headers["flags"], ip_headers["ttl"], ip_headers["protocol"], ip.DEFAULT_CHECKSUM, ip_headers["src_addr"], ip_headers["dest_addr"]
         )
 
+        # Calculate checksum
         checksum = utils.compute_header_checksum(temp_ip_header)
 
         return (checksum == packet_checksum)
