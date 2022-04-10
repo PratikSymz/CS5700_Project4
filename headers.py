@@ -188,7 +188,7 @@ class ip:
                 tport_layer_packet - data (in bytes) of the transport layer packet containing the TCP headers and the payload
             Returns: Network layer packet with the IP headers wrapped over the TCP headers and the payload
         '''
-        ip.ID = random.randint(0, 65535)   # ID MAX: 65535
+        ip.ID = random.randint(0, 65535)   # ID MAX: 65535      # ! Change here
         ip.DGRAM_LEN = 4 * ip.HEADER_LEN + len(tport_layer_packet)
 
         temp_ip_header = pack(

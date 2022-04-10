@@ -2,7 +2,7 @@ import socket
 
 
 ''' Set of constant fields for HTTP connection '''
-HTTP_VERSION = 'HTTP/1.0'
+HTTP_VERSION = 'HTTP/1.0'      # ! Change here
 HOST_NAME_HEADER = 'Host: '
 
 def compute_header_checksum(header_data: bytes):
