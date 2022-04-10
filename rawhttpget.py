@@ -106,7 +106,7 @@ class RawSocket:
             # Packet transmitted from the server - handle all cases and update SEQ and ACK nums
             if (tcp_headers["flags"] & self.FLAG_ACK > 0 and tcp_headers["seq_num"] not in tcp_segments and len(payload) > 0):
                 # Compare the Seq no. we're maintaining with the transmitted Ack no.
-                if (tcp.SEQ_NUM == tcp_headers["ack_num"]):    # ! and tcp.ACK_NUM == tcp_headers["seq_num"]
+                if (tcp.ACK_NUM == tcp_headers["seq_num"]):    # ! tcp.SEQ_NUM == tcp_headers["ack_num"]
                     # Add payload for the specific SEQ_NUM
                     tcp_segments[tcp_headers["seq_num"]] = payload
                     # Update Sequence numbers
