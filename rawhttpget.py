@@ -139,21 +139,21 @@ class RawSocket:
 
         print(appl_layer_packet)
 
-        # # Get response content
-        # raw_headers, raw_body = utils.parse_response(appl_layer_packet.decode(self.FORMAT))
-        # # Check HTTP Status Code from the raw HTML data
-        # response_code = utils.get_response_code(raw_headers)
+        # Get response content
+        raw_headers, raw_body = utils.parse_response(appl_layer_packet)
+        # Check HTTP Status Code from the raw HTML data
+        response_code = utils.get_response_code(raw_headers.decode(self.FORMAT))
 
-        # if (response_code == self.HTTP_STATUS_CODE):
-        #     headers = utils.parse_headers(raw_headers)
+        if (response_code == self.HTTP_STATUS_CODE):
+            # headers = utils.parse_headers(raw_headers.decode(self.FORMAT))
 
-        #     # Write content to file
-        #     filename = utils.get_filename(arg_url)
-        #     utils.write_to_file(filename, raw_body)
+            # Write content to file
+            filename = utils.get_filename(arg_url)
+            utils.write_to_file(filename, raw_body)
         
-        # else:
-        #     # Exit program
-        #     sys.exit('HTTP Error! Response NOT 200')
+        else:
+            # Exit program
+            sys.exit('HTTP Error! Response NOT 200')
 
 
     def init_tcp_handshake(self):

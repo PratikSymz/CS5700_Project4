@@ -98,14 +98,14 @@ def build_GET_request(url: str, host_url: str):
     
     return '\r\n'.join(message_lines) + '\r\n\r\n'
 
-def parse_response(http_response: str):
+def parse_response(http_response: bytes):
     '''
         Function: parse_response() - parses the response data from the GET request and returns the raw content of the response
         Parameters: 
             http_response - the http response received from server
         Returns: the raw headers and raw HTML body
     '''
-    sections = http_response.split('\r\n\r\n')
+    sections = http_response.split(b'\r\n\r\n')
     # sections[0] - raw Headers, sections[1] - raw HTML data
     # The response is only HTTP Headers (i.e., just after log in)
     if (len(sections) < 2):
@@ -166,7 +166,7 @@ def get_filename(url_path: str):
 
     return file_name
 
-def write_to_file(file_name: str, content: str):
+def write_to_file(file_name: str, content):
     '''
         Function: write_to_file() - writes and saves content to a file
         Parameters: 
@@ -174,7 +174,7 @@ def write_to_file(file_name: str, content: str):
             content - the content to be written to the file
         Returns: none
     '''
-    file = open(file_name, 'w+')
+    file = open(file_name, 'wb+')
     file.write(content)
     file.close()
 
