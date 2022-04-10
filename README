@@ -3,7 +3,7 @@
 CS 5700 Project 4 Raw Sockets
 ======================================================================
 Team Name: amp
-Team Member: 
+Team Members:
 			Pratik Budhiraja (NUID: 002105546)
 			Marwa Elali (NUID: 001527297)
 			Haojun Zhu (NUID: 002979116)
@@ -11,19 +11,20 @@ Team Member:
 ======================================================================
 This project is implemented using Python programming language
 
-To run the program with following commands with user has privileged:
-	sudo chmod +x rawhttpget
-	sudo ./rawhttpget URL
+To run the program you need to change file permissions using:
+	make
+Then run the program using:
+	./rawhttpget URL
 
 ======================================================================
 High-level Approach
 
-	- Divide the process into three layers: Application layer, Transportation layer and Network layer as in the Open Syetems
+	- Divide the process into three layers: Application layer, Transportation layer and Network layer as in the Open Systems
 	Interconnection Model.
-	- The application layer obtaining the URL argument provided by
+	- The application layer obtaining the URL argument provided by the
 	user from the command line. The URL will be parsed to provide
 	path and destination filename.
-	- With source IP address of client and destination IP address of server create sending and recieving sockets.
+	- With source IP address of client and destination IP address of server create sending and receiving sockets.
 	- Build the TCP and IP headers after sockets created
 	- Following three way handshake to make a connection before
 	sending anything
@@ -35,7 +36,7 @@ High-level Approach
 
 	- The program will monitor and filter the packets received, and
 	unpack the IP Datagram and check the validity layer by layer, while
-	keep buffer for each data and sort the data according to TCP seq#
+	keep buffer for each data and sort the data according to TCP sequence number.
 
 	IP Datagram [IP Header, TCP Header, Data] -> (ip unpack) ->
 	TCP Segment[TCP Header, Data] -> (tcp unpack) -> [Data]
@@ -67,11 +68,9 @@ Challenges Faced (# need more details ? #)
 
 - The first challenge we faced was testing our code on Ubuntu Linux VM,
 we keep getting the error operation not permitted when socket sending 
-packets even as root user. First we thought it was because the file has the 
-immutable flag set in its extended attributes, however after we tried
+packets even as root user. First we thought it was because the file has the immutable flag set in its extended attributes, however after we tried
 to fix this with 'sudo chattr -f filename', we are still getting the same
-error. We have posted the question on piazza and finally there was something 
-wrong with the socket set up and raw socket sendto()
+error. We have posted the question on piazza and finally there was something wrong with the socket set up and raw socket sendto(). It was a code error where the IP layer was not being added.
 
 - The second challenge we faced was the implementation of checksum 
 algorithm and the bitwise manipulation when compute checksum for either
@@ -81,24 +80,23 @@ sending packet or verify the packet.
 packets.
 
 - The fourth challenge was implementing the filter to assure we only
-receive the packet belong to our program
+receive the packet belonging to our program
 
-- Next challenge we faced was junk data in the file that being written
+- Next challenge we faced was junk data in the file that was being written
 
 - The last one was actually testing with wireshark
 
 ======================================================================
 Overview on Testing (# need more details ? #)
 
-We implement and test the program increamantally that we test each our module 
-to make sure its functionality before combine together.
+We implemented and tested the program incrementally as we built each part of our module to ensure its functionality before combining together.
 
 ======================================================================
 Work Contribution (need further discuss and decisioin)
 
-Pratik Budhiraja : all the function in class TCP,
-Marwa Elali : all the function in class IP,
-Haojun Zhu : adapted functionality of HTTP from project 2
+Pratik Budhiraja : implemented TCP headers and packing/unpacking, calculating and validating checksum
+Marwa Elali : implemented IP headers and packing/unpacking, putting together the runnning of the program
+Haojun Zhu : adapted functionality of HTTP from project 2, helped set up virtual environment for the team, debugging
 
 ======================================================================
 File Design
