@@ -19,24 +19,17 @@ Then run the program using:
 ======================================================================
 High-level Approach
 
-	- Divide the process into three layers: Application layer, Transportation layer and Network layer as in the Open Systems
-	Interconnection Model.
-	- The application layer obtaining the URL argument provided by the
-	user from the command line. The URL will be parsed to provide
-	path and destination filename.
+	- Divide the process into three layers: Application layer, Transportation layer and Network layer as in the Open Systems Interconnection Model.
+	- The application layer obtaining the URL argument provided by the user from the command line. The URL will be parsed to provide path and destination filename.
 	- With source IP address of client and destination IP address of server create sending and receiving sockets.
 	- Build the TCP and IP headers after sockets created
-	- Following three way handshake to make a connection before
-	sending anything
-	- After packing process shown below, the program will send the
-	final IP datagram to corresponding remote host
+	- Following three way handshake to make a connection before sending anything
+	- After packing process shown below, the program will send the final IP datagram to corresponding remote host
 	
 	[Payload] -> (tcp pack) -> TCP Segment[TCP Header, Payload] 
 	-> (ip pack) -> IP Datagram [IP Header, TCP Header, Payload]
 
-	- The program will monitor and filter the packets received, and
-	unpack the IP Datagram and check the validity layer by layer, while
-	keep buffer for each data and sort the data according to TCP sequence number.
+	- The program will monitor and filter the packets received, and unpack the IP Datagram and check the validity layer by layer, while keep buffer for each data and sort the data according to TCP sequence number.
 
 	IP Datagram [IP Header, TCP Header, Data] -> (ip unpack) ->
 	TCP Segment[TCP Header, Data] -> (tcp unpack) -> [Data]
@@ -46,8 +39,7 @@ Features Implemented
 
  	= Features of IP packets
  		- Validating the checksums of incomming packets
- 		- Setting the correct version, header length and total length,
- 		protocol identifier, and checksum in each outgoing packet.
+ 		- Setting the correct version, header length and total length, protocol identifier, and checksum in each outgoing packet.
  		- Correctly set the source and destination IP in each outgoing packet.
 
  	= Features of TCP packets
@@ -64,39 +56,34 @@ Features Implemented
  		- Implement a basic congestion window
 
 ======================================================================
-Challenges Faced (# need more details ? #)
+Challenges Faced
 
-- The first challenge we faced was testing our code on Ubuntu Linux VM,
-we keep getting the error operation not permitted when socket sending 
-packets even as root user. First we thought it was because the file has the immutable flag set in its extended attributes, however after we tried
-to fix this with 'sudo chattr -f filename', we are still getting the same
-error. We have posted the question on piazza and finally there was something wrong with the socket set up and raw socket sendto(). It was a code error where the IP layer was not being added.
+- The first challenge we faced was testing our code on Ubuntu Linux VM, since setting up the environment in the first place was a big challenge. The header byte size calculation and making sure we unpack and pack the headers carefully was proving to be a challenge.
 
-- The second challenge we faced was the implementation of checksum 
-algorithm and the bitwise manipulation when compute checksum for either
-sending packet or verify the packet.
+- The second challenge we faced was the implementation of checksum algorithm and the bitwise manipulation when compute checksum for either sending packet or verify the packet.
 
-- The third challenge was implementing the three way hanshake for TCP
-packets.
-
-- The fourth challenge was implementing the filter to assure we only
-receive the packet belonging to our program
-
-- Next challenge we faced was junk data in the file that was being written
+- The third challenge was implementing the three way hanshake for TCP packets and ensuring we maintain the correct SEQ and ACK numbers and close the connection on time.
 
 - The last one was actually testing with wireshark
 
 ======================================================================
-Overview on Testing (# need more details ? #)
+Overview on Testing
 
 We implemented and tested the program incrementally as we built each part of our module to ensure its functionality before combining together.
+- The first part of the testing was setting the TCP and IP header information based on any packet transmitted on a Wireshark trace file and comparing the checksum value based on what we computed and what Wireshark was showing.
+
+- Testing whether the packet information we received has been correctly unpacked and tested all conditions of packet rejection and retransmission.
+
+- Testing our finalized code on all the links provided in the project description. We were able to receive all data from 2MB uptil the 50MB file.
 
 ======================================================================
-Work Contribution (need further discuss and decisioin)
+Work Contribution
 
-Pratik Budhiraja : implemented TCP headers and packing/unpacking, calculating and validating checksum
-Marwa Elali : implemented IP headers and packing/unpacking, putting together the runnning of the program
-Haojun Zhu : adapted functionality of HTTP from project 2, helped set up virtual environment for the team, debugging
+Pratik Budhiraja : implemented TCP headers and packing/unpacking, calculating and validating checksum, and receiving ack packets.
+Marwa Elali : implemented IP headers and packing/unpacking, putting together the runnning of the program.
+Haojun Zhu : implemented the handshake and send packet function. Adapted functionality of HTTP from project 2, helped set up virtual environment for the team and debugging along with the payload verification.
+
+Majority of the functionalities of the program were overlapping so there was less individual work and more collaboration since we all needed to be on the same page.
 
 ======================================================================
 File Design
@@ -107,18 +94,7 @@ File Design
 	- also include the function that validate checksum
 
 = rawhttpget.py
-	- Main driver of the raw socket program include the function to
-	initiate three way handshake, sending & receving process, and close
-	connection with server.
-
-= test.py
-	- set up for module testing, changing all the time but will not affect
-	the main program
+	- Main driver of the raw socket program include the function to initiate three way handshake, sending & receving process, and close connection with server.
 
 = utils.py
-	- include all the utilities function such as compute checksum, all the
-	parser either for URL, http header, etc. , filename parser and other 
-	function for saving the file to local, also function that shift/deshift 
-	flags to corresponding bitwise locations is included in this file.
-
-======================================================================
+	- include all the utilities function such as compute checksum, all the parser either for URL, http header, etc. , filename parser and other function for saving the file to local, also function that shift/deshift flags to corresponding bitwise locations is included in this file.

@@ -2,4 +2,3 @@
 .vscode/
 bin/
 __pycache__/
-random_test.py
