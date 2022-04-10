@@ -106,7 +106,7 @@ class RawSocket:
             # Packet transmitted from the server - handle all cases and update SEQ and ACK nums
             if (tcp_headers["flags"] & self.FLAG_ACK > 0 and tcp_headers["seq_num"] not in tcp_segments and len(payload) > 0):
                 # Compare the Seq no. we're maintaining with the transmitted Ack no.
-                if (tcp.SEQ_NUM == tcp_headers["ack_num"]):    # ! and tcp.ACK_NUM == tcp_headers["seq_num"]
+                if (tcp.SEQ_NUM == tcp_headers["ack_num"]):    # and tcp.ACK_NUM == tcp_headers["seq_num"]
                     # Add payload for the specific SEQ_NUM
                     tcp_segments[tcp_headers["seq_num"]] = payload
                     # Update Sequence numbers
@@ -127,6 +127,9 @@ class RawSocket:
                     self.CWND = utils.set_congestion_control(self.CWND, tcp.ADV_WINDOW, True)
                     self.send_packet(self.FLAG_ACK, self.EMPTY_PAYLOAD)
 
+        # Tear down connection after all data has been received
+        self.close_connection(self.SOURCE_CLIENT)
+        
         # Sort the TCP segments based on SEQ_NUM and concatenate the payload
         tcp_segments_inorder = sorted(tcp_segments.items())
         appl_layer_packet = self.EMPTY_PAYLOAD
@@ -134,17 +137,12 @@ class RawSocket:
         for _, data_segment in tcp_segments_inorder:
             appl_layer_packet += data_segment
 
-        # Tear down connection after all data has been received
-        self.close_connection(self.SOURCE_CLIENT)
-
         # Get response content
-        raw_headers, raw_body = utils.parse_response(appl_layer_packet.decode(self.FORMAT))
+        raw_headers, raw_body = utils.parse_response(appl_layer_packet)
         # Check HTTP Status Code from the raw HTML data
-        response_code = utils.get_response_code(raw_headers)
+        response_code = utils.get_response_code(raw_headers.decode(self.FORMAT))
 
         if (response_code == self.HTTP_STATUS_CODE):
-            headers = utils.parse_headers(raw_headers)
-
             # Write content to file
             filename = utils.get_filename(arg_url)
             utils.write_to_file(filename, raw_body)
@@ -314,11 +312,9 @@ class RawSocket:
             Returns: none
         '''
         if (source == self.SOURCE_SERVER):
-            print('Server-side shutdown!')
             self.send_packet(self.FLAG_FIN_ACK, self.EMPTY_PAYLOAD)
         
         if (source == self.SOURCE_CLIENT):
-            print('Client-side shutdown!')
             self.send_packet(self.FLAG_FIN_ACK, self.EMPTY_PAYLOAD)
             self.receive_ack_packet(self.FLAG_FIN_ACK)
             self.send_packet(self.FLAG_ACK, self.EMPTY_PAYLOAD)
